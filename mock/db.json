@@ -1,0 +1,18 @@
+{
+  "routes": [
+    {
+      "id": 1,
+      "start": "강남역",
+      "end": "잠실역",
+      "difficulty": 37,
+      "recommended": true
+    }
+  ],
+  "surveys": [
+    {
+      "id": 1,
+      "driverLevel": "beginner",
+      "avoidNightDriving": true
+    }
+  ]
+}
