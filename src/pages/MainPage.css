@@ -1,170 +1,298 @@
-.main-page {
+.login-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  color: #ffffff;
-  padding: 2rem;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  color: #0f172a;
 }
 
-.main-container {
-  max-width: 800px;
-  margin: 0 auto;
+.login-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 2rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  backdrop-filter: blur(14px);
 }
 
-.main-header {
-  text-align: center;
-  margin-bottom: 3rem;
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
 }
 
-.main-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-  background: linear-gradient(90deg, #00d9ff, #00ff88);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.main-subtitle {
-  font-size: 1.1rem;
-  color: #a0a0a0;
-}
-
-.search-section {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 2rem;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 2rem;
-}
-
-.input-group {
-  margin-bottom: 1.5rem;
-}
-
-.input-group label {
-  display: block;
-  font-size: 0.9rem;
-  color: #00d9ff;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-}
-
-.location-input {
-  width: 100%;
-  padding: 1rem 1.25rem;
-  font-size: 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
-  transition: all 0.3s ease;
-  box-sizing: border-box;
-}
-
-.location-input:focus {
-  outline: none;
-  border-color: #00d9ff;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
-}
-
-.location-input::placeholder {
-  color: #666;
-}
-
-.search-button {
-  width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #1a1a2e;
-  background: linear-gradient(90deg, #00d9ff, #00ff88);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.search-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
-}
-
-.search-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.feature-section {
-  margin-bottom: 2rem;
-}
-
-.feature-section h2 {
-  text-align: center;
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: #ffffff;
-}
-
-.feature-cards {
+.brand-mark {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  box-shadow: 0 16px 40px rgba(37, 99, 235, 0.24);
 }
 
-.feature-card {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 1.5rem;
-  text-align: center;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+.brand-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
-.feature-card:hover {
-  transform: translateY(-5px);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(0, 217, 255, 0.3);
+.brand-subtitle {
+  font-size: 0.875rem;
+  color: #64748b;
 }
 
-.feature-icon {
-  font-size: 2.5rem;
+.help-chip {
+  border: 0;
+  border-radius: 1rem;
+  padding: 0.95rem 1.2rem;
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.login-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.25rem 4rem;
+}
+
+.login-panel {
+  display: grid;
+  grid-template-columns: 1.05fr minmax(340px, 460px);
+  width: min(1080px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 2rem;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 34px 80px rgba(15, 23, 42, 0.12);
+}
+
+.login-hero {
+  position: relative;
+  min-height: 640px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.28), transparent 26%),
+    radial-gradient(circle at 78% 24%, rgba(96, 165, 250, 0.24), transparent 24%),
+    linear-gradient(135deg, #dbeafe 0%, #eff6ff 38%, #f8fafc 100%);
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), transparent 80%);
+}
+
+.hero-copy {
+  position: absolute;
+  left: 2.5rem;
+  right: 2.5rem;
+  bottom: 2.5rem;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.5rem 0.8rem;
+  background: rgba(255, 255, 255, 0.75);
+  color: #1d4ed8;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.hero-copy h1 {
+  margin-top: 1rem;
+  font-size: clamp(2.8rem, 5vw, 4.2rem);
+  line-height: 0.95;
+  letter-spacing: -0.05em;
+}
+
+.hero-copy p {
+  max-width: 26rem;
+  margin-top: 1rem;
+  color: #334155;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2.75rem;
+}
+
+.login-copy h2 {
+  font-size: 2rem;
+  letter-spacing: -0.03em;
+}
+
+.login-copy p {
+  margin-top: 0.65rem;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.field {
   display: block;
-  margin-bottom: 0.75rem;
+  margin-top: 1.35rem;
 }
 
-.feature-card h3 {
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
-  color: #00d9ff;
+.field > span,
+.field-label-row span {
+  display: block;
+  margin-bottom: 0.65rem;
+  font-weight: 700;
 }
 
-.feature-card p {
-  font-size: 0.9rem;
-  color: #a0a0a0;
-  line-height: 1.4;
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
-.survey-section {
-  text-align: center;
+.field-input {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 1rem;
+  padding: 0.95rem 1rem;
+  background: #f8fbff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.survey-button {
-  padding: 1rem 2.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  color: #00d9ff;
+.field-input:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.field-input svg {
+  color: #64748b;
+}
+
+.field-input input {
+  flex: 1;
+  border: 0;
   background: transparent;
-  border: 2px solid #00d9ff;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  color: #0f172a;
+  font-size: 1rem;
+  outline: none;
 }
 
-.survey-button:hover {
-  color: #1a1a2e;
-  background: #00d9ff;
-  box-shadow: 0 10px 30px rgba(0, 217, 255, 0.3);
+.text-link,
+.toggle-visibility {
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  color: #64748b;
+}
+
+.remember-row input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #2563eb;
+}
+
+.primary-button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  border-radius: 1rem;
+  padding: 1rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.primary-button {
+  margin-top: 1.5rem;
+  border: 0;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.28);
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+}
+
+.secondary-button {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  color: #0f172a;
+}
+
+.divider {
+  position: relative;
+  margin: 1.5rem 0;
+  text-align: center;
+  color: #94a3b8;
+}
+
+.divider::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #dbe4f0;
+  content: '';
+}
+
+.divider span {
+  position: relative;
+  padding: 0 0.85rem;
+  background: #fff;
+}
+
+.google-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.login-footnote {
+  margin-top: 1.5rem;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 960px) {
+  .login-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .login-hero {
+    min-height: 220px;
+  }
+
+  .login-card {
+    padding: 2rem 1.25rem;
+  }
 }
