@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FiAlertTriangle,
-  FiArrowRight,
   FiCompass,
   FiEdit3,
   FiLayers,
@@ -16,7 +15,13 @@ import {
   FiUser,
   FiX,
 } from 'react-icons/fi';
+import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { useLocation, useNavigate } from 'react-router-dom';
+import 'leaflet/dist/leaflet.css';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import './MapPage.css';
 
 type LocationState = {
@@ -52,8 +57,23 @@ type SegmentItem = {
   explanation: string;
   tags: string[];
   color: string;
-  path: { top: string; left: string; width: string; rotate: string };
+  coordinates: [number, number][];
 };
+
+type RouteMode = 'safe' | 'fast';
+type DifficultyFilter = 'all' | 'easy' | 'moderate' | 'high';
+type MockRouteResult = {
+  totalDistanceKm: number;
+  estimatedMinutes: number;
+  avgDifficulty: number;
+  segments: SegmentItem[];
+};
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 const fallbackVulnerabilityTypes: VulnerabilityType[] = [
   {
@@ -86,7 +106,7 @@ const fallbackVulnerabilityTypes: VulnerabilityType[] = [
   },
 ];
 
-const mockSegments: SegmentItem[] = [
+const safeRouteSegments: SegmentItem[] = [
   {
     id: 'SEG_001',
     name: '강남대로 북행',
@@ -95,7 +115,11 @@ const mockSegments: SegmentItem[] = [
     explanation: '차로 폭이 넓고 도로 선형이 단순해 초심자에게 무난합니다.',
     tags: ['넓은 차로', '단순 직진'],
     color: '#22c55e',
-    path: { top: '24%', left: '28%', width: '28%', rotate: '-12deg' },
+    coordinates: [
+      [37.5058, 127.0285],
+      [37.5074, 127.0342],
+      [37.5091, 127.0405],
+    ],
   },
   {
     id: 'SEG_002',
@@ -105,7 +129,11 @@ const mockSegments: SegmentItem[] = [
     explanation: '신호 대기 차량과 좌회전 진입 차량이 많아 주의가 필요합니다.',
     tags: ['복합 교차로', '차선 변경'],
     color: '#f59e0b',
-    path: { top: '48%', left: '44%', width: '18%', rotate: '-44deg' },
+    coordinates: [
+      [37.5008, 127.0368],
+      [37.5038, 127.0395],
+      [37.5071, 127.0421],
+    ],
   },
   {
     id: 'SEG_003',
@@ -115,9 +143,84 @@ const mockSegments: SegmentItem[] = [
     explanation: '교통량이 많고 버스전용차로 인접 구간이라 긴장도가 높습니다.',
     tags: ['혼잡도 높음', '버스 차로 인접'],
     color: '#ef4444',
-    path: { top: '67%', left: '33%', width: '36%', rotate: '0deg' },
+    coordinates: [
+      [37.4921, 127.0312],
+      [37.4924, 127.0408],
+      [37.4928, 127.0509],
+    ],
   },
 ];
+
+const fastRouteSegments: SegmentItem[] = [
+  {
+    id: 'SEG_FAST_001',
+    name: '강남대로 직진 구간',
+    score: 49,
+    level: '보통',
+    explanation: '가장 빠른 흐름으로 연결되지만 신호와 합류 교통이 많은 구간입니다.',
+    tags: ['직결 경로', '신호 많음'],
+    color: '#f59e0b',
+    coordinates: [
+      [37.4983, 127.0274],
+      [37.5019, 127.0348],
+      [37.5062, 127.0434],
+    ],
+  },
+  {
+    id: 'SEG_FAST_002',
+    name: '테헤란로 주행 구간',
+    score: 77,
+    level: '어려움',
+    explanation: '거리상 이득이 있지만 교통량이 많아 평균 난이도가 더 높습니다.',
+    tags: ['고속 흐름', '혼잡도 높음'],
+    color: '#ef4444',
+    coordinates: [
+      [37.5062, 127.0434],
+      [37.5035, 127.0485],
+      [37.5004, 127.0559],
+    ],
+  },
+];
+
+const createMockRouteResult = (mode: RouteMode, coords: { startLat: number; startLon: number; endLat: number; endLon: number }): MockRouteResult => {
+  const startPoint: [number, number] = [coords.startLat, coords.startLon];
+  const endPoint: [number, number] = [coords.endLat, coords.endLon];
+
+  if (mode === 'safe') {
+    return {
+      totalDistanceKm: 6.2,
+      estimatedMinutes: 21,
+      avgDifficulty: 57,
+      segments: [
+        {
+          ...safeRouteSegments[0],
+          coordinates: [startPoint, ...safeRouteSegments[0].coordinates.slice(1)],
+        },
+        safeRouteSegments[1],
+        {
+          ...safeRouteSegments[2],
+          coordinates: [...safeRouteSegments[2].coordinates.slice(0, 2), endPoint],
+        },
+      ],
+    };
+  }
+
+  return {
+    totalDistanceKm: 4.8,
+    estimatedMinutes: 15,
+    avgDifficulty: 63,
+    segments: [
+      {
+        ...fastRouteSegments[0],
+        coordinates: [startPoint, ...fastRouteSegments[0].coordinates.slice(1)],
+      },
+      {
+        ...fastRouteSegments[1],
+        coordinates: [...fastRouteSegments[1].coordinates.slice(0, 2), endPoint],
+      },
+    ],
+  };
+};
 
 const iconLabelMap: Record<string, string> = {
   road_narrow: '좁은 도로',
@@ -159,20 +262,55 @@ const getStoredProfile = (): UserProfile => {
   };
 };
 
+const defaultCenter: [number, number] = [37.5019, 127.0382];
+
+const FitToSegments = ({ coordinates }: { coordinates: [number, number][] }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (coordinates.length === 0) {
+      map.setView(defaultCenter, 14);
+      return;
+    }
+
+    const bounds = L.latLngBounds(coordinates);
+    map.fitBounds(bounds, { padding: [48, 48] });
+  }, [coordinates, map]);
+
+  return null;
+};
+
 const MapPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const routeState = (location.state as LocationState) ?? {};
+  const [selectedRouteMode, setSelectedRouteMode] = useState<RouteMode>('safe');
   const [profile, setProfile] = useState<UserProfile>(() => getStoredProfile());
   const [nicknameDraft, setNicknameDraft] = useState(profile.nickname);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [overlayEnabled, setOverlayEnabled] = useState(true);
-  const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'moderate' | 'high'>('all');
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string>(mockSegments[1].id);
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyFilter>('all');
+  const [coordinateForm, setCoordinateForm] = useState({
+    startLat: '37.4979',
+    startLon: '127.0276',
+    endLat: '37.5312',
+    endLon: '127.0418',
+  });
+  const [routeResult, setRouteResult] = useState<MockRouteResult>(() =>
+    createMockRouteResult('safe', {
+      startLat: 37.4979,
+      startLon: 127.0276,
+      endLat: 37.5312,
+      endLon: 127.0418,
+    }),
+  );
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string>(safeRouteSegments[1].id);
+  const [searchMessage, setSearchMessage] = useState('좌표 기반 mock 경로 검색 결과입니다.');
 
   const filteredSegments = useMemo(() => {
-    return mockSegments.filter((segment) => {
+    return routeResult.segments.filter((segment) => {
       if (difficultyFilter === 'all') {
         return true;
       }
@@ -184,9 +322,12 @@ const MapPage = () => {
       }
       return segment.score > 65;
     });
-  }, [difficultyFilter]);
+  }, [difficultyFilter, routeResult.segments]);
 
-  const selectedSegment = filteredSegments.find((segment) => segment.id === selectedSegmentId) ?? filteredSegments[0];
+  const activeSegmentId =
+    filteredSegments.find((segment) => segment.id === selectedSegmentId)?.id ?? filteredSegments[0]?.id;
+
+  const selectedSegment = filteredSegments.find((segment) => segment.id === activeSegmentId) ?? filteredSegments[0];
 
   const routeTitle = {
     start: routeState.startLocation ?? '강남역',
@@ -194,6 +335,63 @@ const MapPage = () => {
   };
 
   const topTone = selectedSegment ? getLevelTone(selectedSegment.score) : getLevelTone(50);
+  const allCoordinates = filteredSegments.flatMap((segment) => segment.coordinates);
+  const routeCoordinates = selectedSegment?.coordinates ?? [];
+  const startMarker = routeCoordinates[0] ?? allCoordinates[0] ?? defaultCenter;
+  const endMarker = routeCoordinates[routeCoordinates.length - 1] ?? allCoordinates[allCoordinates.length - 1] ?? defaultCenter;
+
+  const handleCoordinateChange = (field: keyof typeof coordinateForm, value: string) => {
+    setCoordinateForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleRouteSearch = () => {
+    const parsed = {
+      startLat: Number(coordinateForm.startLat),
+      startLon: Number(coordinateForm.startLon),
+      endLat: Number(coordinateForm.endLat),
+      endLon: Number(coordinateForm.endLon),
+    };
+
+    if (Object.values(parsed).some((value) => Number.isNaN(value))) {
+      setSearchMessage('유효한 좌표를 입력해주세요. 현재는 mock 경로만 생성합니다.');
+      return;
+    }
+
+    const nextResult = createMockRouteResult(selectedRouteMode, parsed);
+    setRouteResult(nextResult);
+    setSelectedSegmentId(nextResult.segments[0]?.id ?? '');
+    setSearchMessage(
+      selectedRouteMode === 'safe'
+        ? '취약 특성을 고려한 안전 경로 mock 결과를 표시 중입니다.'
+        : '거리 우선 최단 경로 mock 결과를 표시 중입니다.',
+    );
+  };
+
+  const handleRouteModeChange = (mode: RouteMode) => {
+    setSelectedRouteMode(mode);
+    const parsed = {
+      startLat: Number(coordinateForm.startLat),
+      startLon: Number(coordinateForm.startLon),
+      endLat: Number(coordinateForm.endLat),
+      endLon: Number(coordinateForm.endLon),
+    };
+
+    if (Object.values(parsed).some((value) => Number.isNaN(value))) {
+      return;
+    }
+
+    const nextResult = createMockRouteResult(mode, parsed);
+    setRouteResult(nextResult);
+    setSelectedSegmentId(nextResult.segments[0]?.id ?? '');
+    setSearchMessage(
+      mode === 'safe'
+        ? '안전 경로 기준으로 세그먼트 난이도를 재구성했습니다.'
+        : '최단 경로 기준으로 더 짧지만 더 어려운 구간을 표시합니다.',
+    );
+  };
 
   const handleSaveNickname = () => {
     const trimmed = nicknameDraft.trim();
@@ -291,6 +489,51 @@ const MapPage = () => {
             </button>
           </div>
 
+          <div className="coordinate-card">
+            <div className="coordinate-grid">
+              <label>
+                <span>출발 위도</span>
+                <input value={coordinateForm.startLat} onChange={(event) => handleCoordinateChange('startLat', event.target.value)} />
+              </label>
+              <label>
+                <span>출발 경도</span>
+                <input value={coordinateForm.startLon} onChange={(event) => handleCoordinateChange('startLon', event.target.value)} />
+              </label>
+              <label>
+                <span>도착 위도</span>
+                <input value={coordinateForm.endLat} onChange={(event) => handleCoordinateChange('endLat', event.target.value)} />
+              </label>
+              <label>
+                <span>도착 경도</span>
+                <input value={coordinateForm.endLon} onChange={(event) => handleCoordinateChange('endLon', event.target.value)} />
+              </label>
+            </div>
+            <div className="coordinate-actions">
+              <div className="route-mode-group">
+                <button
+                  type="button"
+                  className={selectedRouteMode === 'safe' ? 'mode-button active' : 'mode-button'}
+                  onClick={() => handleRouteModeChange('safe')}
+                >
+                  <FiShield />
+                  안전 경로
+                </button>
+                <button
+                  type="button"
+                  className={selectedRouteMode === 'fast' ? 'mode-button active' : 'mode-button'}
+                  onClick={() => handleRouteModeChange('fast')}
+                >
+                  <FiNavigation />
+                  최단 경로
+                </button>
+              </div>
+              <button type="button" className="search-route-button" onClick={handleRouteSearch}>
+                좌표로 경로 검색
+              </button>
+            </div>
+            <p className="coordinate-hint">{searchMessage}</p>
+          </div>
+
           <div className="filter-row">
             <div className="pill-control">
               <FiLayers />
@@ -318,25 +561,54 @@ const MapPage = () => {
 
         <section className="osm-map-frame">
           <div className="osm-watermark">OSM Preview Shell</div>
+          <MapContainer center={defaultCenter} zoom={14} className="leaflet-map" preferCanvas>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+            {filteredSegments.map((segment) => (
+              <Polyline
+                key={segment.id}
+                positions={segment.coordinates}
+                eventHandlers={{
+                  click: () => setSelectedSegmentId(segment.id),
+                  mouseover: (event) => event.target.setStyle({ weight: 10, opacity: 1 }),
+                  mouseout: (event) =>
+                    event.target.setStyle({
+                      weight: activeSegmentId === segment.id ? 9 : 7,
+                      opacity: activeSegmentId === segment.id ? 1 : 0.82,
+                    }),
+                }}
+                pathOptions={{
+                  color: segment.color,
+                  weight: activeSegmentId === segment.id ? 9 : 7,
+                  opacity: activeSegmentId === segment.id ? 1 : 0.82,
+                }}
+              >
+                <Popup>
+                  <div className="segment-popup">
+                    <strong>{segment.name}</strong>
+                    <span>{segment.id}</span>
+                    <p>{segment.explanation}</p>
+                  </div>
+                </Popup>
+              </Polyline>
+            ))}
+
+            <Marker position={startMarker}>
+              <Popup>출발: {routeTitle.start}</Popup>
+            </Marker>
+            <Marker position={endMarker}>
+              <Popup>도착: {routeTitle.end}</Popup>
+            </Marker>
+
+            <FitToSegments coordinates={allCoordinates} />
+          </MapContainer>
+
           <div className="map-grid-overlay" />
           <div className="map-city-label">Seoul</div>
           <div className="map-neighborhood">Gangnam District</div>
-
-          {filteredSegments.map((segment) => (
-            <button
-              key={segment.id}
-              type="button"
-              className={selectedSegment?.id === segment.id ? 'segment-path active' : 'segment-path'}
-              style={{
-                top: segment.path.top,
-                left: segment.path.left,
-                width: segment.path.width,
-                transform: `rotate(${segment.path.rotate})`,
-                backgroundColor: segment.color,
-              }}
-              onClick={() => setSelectedSegmentId(segment.id)}
-            />
-          ))}
 
           <div className="map-legend-card">
             <span className="legend-title">Difficulty Level</span>
@@ -345,36 +617,6 @@ const MapPage = () => {
               <span><i style={{ background: '#f59e0b' }} />Moderate</span>
               <span><i style={{ background: '#ef4444' }} />High</span>
             </div>
-          </div>
-
-          <div className="map-floating-card">
-            <div className="floating-card-header">
-              <div>
-                <strong>{selectedSegment?.name ?? '선택된 도로 없음'}</strong>
-                <p>{selectedSegment?.id ?? 'SEG_000'}</p>
-              </div>
-              <div className="score-pill">
-                <strong>{selectedSegment?.score ?? '--'}/100</strong>
-                <span>SAFETY SCORE</span>
-              </div>
-            </div>
-
-            <div className="floating-progress">
-              <div className="floating-progress-fill" style={{ width: `${selectedSegment?.score ?? 0}%` }} />
-            </div>
-
-            <div className="tag-row">
-              {selectedSegment?.tags.map((tag) => (
-                <span key={tag} className="map-tag">
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            <button type="button" className="primary-cta" onClick={() => setShowProfilePanel(true)}>
-              View Profile Context
-              <FiArrowRight />
-            </button>
           </div>
 
           <div className="map-controls">
@@ -386,7 +628,7 @@ const MapPage = () => {
           </div>
         </section>
 
-        <section className="map-bottom-panel">
+        <section className="map-floating-footer">
           <div className="summary-strip">
             <div className="summary-chip">
               <span className="summary-chip-label">Route</span>
@@ -395,8 +637,16 @@ const MapPage = () => {
               </strong>
             </div>
             <div className="summary-chip">
+              <span className="summary-chip-label">Mode</span>
+              <strong>{selectedRouteMode === 'safe' ? 'Safe Route' : 'Fast Route'}</strong>
+            </div>
+            <div className="summary-chip">
               <span className="summary-chip-label">Skill Level</span>
               <strong>{profile.skill_level}/100</strong>
+            </div>
+            <div className="summary-chip">
+              <span className="summary-chip-label">ETA</span>
+              <strong>{routeResult.estimatedMinutes}분</strong>
             </div>
             <div className="summary-chip">
               <span className="summary-chip-label">Primary Vulnerability</span>
@@ -406,51 +656,15 @@ const MapPage = () => {
             </div>
           </div>
 
-          <div className="segment-list-card">
-            <div className="section-header">
-              <div>
-                <h2>도로 세그먼트 프리뷰</h2>
-                <p>OSM 지도 위에 난이도와 취약 특성 오버레이가 붙는 구조를 먼저 프론트로 구성했습니다.</p>
-              </div>
-              <button type="button" className="outline-cta" onClick={handleRetakeSurvey}>
-                <FiRefreshCcw />
-                설문 다시하기
-              </button>
-            </div>
-
-            <div className="segment-list">
-              {filteredSegments.map((segment) => {
-                const tone = getLevelTone(segment.score);
-                return (
-                  <button
-                    key={segment.id}
-                    type="button"
-                    className={selectedSegment?.id === segment.id ? 'segment-card active' : 'segment-card'}
-                    onClick={() => setSelectedSegmentId(segment.id)}
-                  >
-                    <div className="segment-card-main">
-                      <div className="segment-card-top">
-                        <strong>{segment.name}</strong>
-                        <span className="score-badge" style={{ color: tone.color, background: tone.bg }}>
-                          {segment.score}점
-                        </span>
-                      </div>
-                      <p>{segment.explanation}</p>
-                      <div className="tag-row">
-                        {segment.tags.map((tag) => (
-                          <span key={tag} className="map-tag subtle">
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <span className="segment-level-indicator" style={{ background: tone.color }}>
-                      {segment.level}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+          <div className="floating-actions-card">
+            <button type="button" className="outline-cta" onClick={() => setShowPreviewModal(true)}>
+              <FiLayers />
+              프리뷰 보기
+            </button>
+            <button type="button" className="outline-cta" onClick={handleRetakeSurvey}>
+              <FiRefreshCcw />
+              설문 다시하기
+            </button>
           </div>
         </section>
       </main>
@@ -556,6 +770,63 @@ const MapPage = () => {
                 <span style={{ color: topTone.color }}>{topTone.label}</span>
                 <strong>{selectedSegment?.score}/100</strong>
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showPreviewModal && (
+        <section className="preview-modal-backdrop" onClick={() => setShowPreviewModal(false)}>
+          <div className="preview-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="preview-modal-header">
+              <div>
+                <span className="sheet-eyebrow">Segment Preview</span>
+                <h2>도로 세그먼트 프리뷰</h2>
+              </div>
+              <button type="button" className="ghost-icon-button" onClick={() => setShowPreviewModal(false)}>
+                <FiX />
+              </button>
+            </div>
+
+            <div className="preview-modal-body">
+              {filteredSegments.map((segment) => {
+                const tone = getLevelTone(segment.score);
+                return (
+                  <button
+                    key={segment.id}
+                    type="button"
+                    className={activeSegmentId === segment.id ? 'segment-card active' : 'segment-card'}
+                    onClick={() => {
+                      setSelectedSegmentId(segment.id);
+                      setShowPreviewModal(false);
+                    }}
+                  >
+                    <div className="segment-card-main">
+                      <div className="segment-card-top">
+                        <strong>{segment.name}</strong>
+                        <span className="score-badge" style={{ color: tone.color, background: tone.bg }}>
+                          {segment.score}점
+                        </span>
+                      </div>
+                      <p>{segment.explanation}</p>
+                      <div className="segment-metadata">
+                        <span>{selectedRouteMode === 'safe' ? '취약 특성 반영' : '거리 우선'}</span>
+                        <span>{segment.coordinates.length - 1}개 링크</span>
+                      </div>
+                      <div className="tag-row">
+                        {segment.tags.map((tag) => (
+                          <span key={tag} className="map-tag subtle">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <span className="segment-level-indicator" style={{ background: tone.color }}>
+                      {segment.level}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </section>
