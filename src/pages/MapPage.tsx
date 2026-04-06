@@ -1,216 +1,360 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import api from '../services/api';
 import './MapPage.css';
+
+// Leaflet 기본 마커 아이콘 fix
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+// ── 타입 정의 ──
 
 interface LocationState {
   startLocation: string;
   endLocation: string;
+  startLat?: number;
+  startLon?: number;
+  endLat?: number;
+  endLon?: number;
 }
 
-interface RouteInfo {
-  distance: number;
-  duration: number;
+interface RouteSegment {
+  edgeId: string;
+  name: string | null;
+  highway: string;
+  lengthM: number;
+  difficulty: number;
+  coordinatesJson: string;
+}
+
+interface RouteResult {
+  totalDistanceM: number;
+  estimatedMinutes: number;
   avgDifficulty: number;
   segments: RouteSegment[];
 }
 
-interface RouteSegment {
-  difficulty: number;
-  description: string;
-  coordinates: [number, number][];
-}
+// ── 유틸 ──
+
+const getDifficultyColor = (difficulty: number): string => {
+  if (difficulty <= 31) return '#00ff88';
+  if (difficulty <= 42) return '#ffcc00';
+  return '#ff4444';
+};
+
+const getDifficultyLabel = (difficulty: number): string => {
+  if (difficulty <= 31) return '쉬움';
+  if (difficulty <= 42) return '보통';
+  return '어려움';
+};
+
+const parseCoordinates = (json: string): [number, number][] => {
+  try {
+    const coords: number[][] = JSON.parse(json);
+    return coords.map(c => [c[1], c[0]] as [number, number]);
+  } catch {
+    return [];
+  }
+};
+
+// ── 지도 범위 자동 조정 ──
+
+const FitBounds = ({ coordinates }: { coordinates: [number, number][] }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (coordinates.length > 0) {
+      const bounds = L.latLngBounds(coordinates);
+      map.fitBounds(bounds, { padding: [60, 60] });
+    }
+  }, [map, coordinates]);
+  return null;
+};
+
+const GANGNAM_CENTER: [number, number] = [37.5050, 127.0500];
+const DEFAULT_ZOOM = 14;
+
+// ── 메인 컴포넌트 ──
 
 const MapPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const state = location.state as LocationState;
-  const mapRef = useRef<HTMLDivElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
-  const [selectedRoute, setSelectedRoute] = useState<'safe' | 'fast' | 'short'>('safe');
+  const state = location.state as LocationState | null;
 
-  // 난이도에 따른 색상 반환
-  const getDifficultyColor = (difficulty: number): string => {
-    if (difficulty <= 30) return '#00ff88'; // 쉬움 - 초록
-    if (difficulty <= 60) return '#ffcc00'; // 보통 - 노랑
-    return '#ff4444'; // 어려움 - 빨강
-  };
+  const [isLoading, setIsLoading] = useState(false);
+  const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedRoute, setSelectedRoute] = useState<'safe' | 'fast'>('safe');
 
-  const getDifficultyLabel = (difficulty: number): string => {
-    if (difficulty <= 30) return '쉬움';
-    if (difficulty <= 60) return '보통';
-    return '어려움';
-  };
+  const [startLat, setStartLat] = useState('37.4979');
+  const [startLon, setStartLon] = useState('127.0276');
+  const [endLat, setEndLat] = useState('37.5172');
+  const [endLon, setEndLon] = useState('127.0473');
+
+  const searchRoute = useCallback(async (sLat: number, sLon: number, eLat: number, eLon: number, mode: 'safe' | 'fast') => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        startLat: sLat, startLon: sLon, endLat: eLat, endLon: eLon,
+      };
+      if (mode === 'safe') {
+        body.vulnerabilities = ['AVOID_HIGHWAY', 'AVOID_COMPLEX_INTERSECTION', 'AVOID_ACCIDENT_PRONE'];
+      }
+      const response = await api.post<RouteResult>('/routes/search', body);
+      setRouteResult(response.data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '경로 탐색에 실패했습니다.';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    // T map API 초기화 (실제 구현 시 API 키 필요)
-    const initMap = async () => {
-      setIsLoading(true);
-      
-      // 데모용 더미 데이터
-      setTimeout(() => {
-        setRouteInfo({
-          distance: 5.2,
-          duration: 18,
-          avgDifficulty: 42,
-          segments: [
-            { difficulty: 25, description: '직진 구간', coordinates: [] },
-            { difficulty: 55, description: '좌회전 교차로', coordinates: [] },
-            { difficulty: 70, description: '급경사 구간', coordinates: [] },
-            { difficulty: 30, description: '일반 도로', coordinates: [] },
-          ],
-        });
-        setIsLoading(false);
-      }, 1500);
-    };
+    if (state?.startLat && state?.startLon && state?.endLat && state?.endLon) {
+      searchRoute(state.startLat, state.startLon, state.endLat, state.endLon, selectedRoute);
+    }
+  }, [state, selectedRoute, searchRoute]);
 
-    initMap();
-  }, [state]);
-
-  const handleBack = () => {
-    navigate('/');
+  const handleSearch = () => {
+    const sLat = parseFloat(startLat);
+    const sLon = parseFloat(startLon);
+    const eLat = parseFloat(endLat);
+    const eLon = parseFloat(endLon);
+    if (isNaN(sLat) || isNaN(sLon) || isNaN(eLat) || isNaN(eLon)) {
+      setError('유효한 좌표를 입력해주세요.');
+      return;
+    }
+    searchRoute(sLat, sLon, eLat, eLon, selectedRoute);
   };
 
-  const handleFeedback = () => {
-    // 피드백 페이지로 이동 또는 모달 표시
-    alert('경로 피드백 기능은 추후 구현 예정입니다.');
+  const handleRouteChange = (mode: 'safe' | 'fast') => {
+    setSelectedRoute(mode);
+    if (routeResult) {
+      const sLat = state?.startLat ?? parseFloat(startLat);
+      const sLon = state?.startLon ?? parseFloat(startLon);
+      const eLat = state?.endLat ?? parseFloat(endLat);
+      const eLon = state?.endLon ?? parseFloat(endLon);
+      searchRoute(sLat, sLon, eLat, eLon, mode);
+    }
   };
 
-  if (!state) {
-    return (
-      <div className="map-page">
-        <div className="error-container">
-          <p>경로 정보가 없습니다. 메인 페이지에서 검색해주세요.</p>
-          <button onClick={handleBack}>메인으로 돌아가기</button>
-        </div>
-      </div>
-    );
-  }
+  const allCoordinates: [number, number][] = routeResult
+    ? routeResult.segments.flatMap(s => parseCoordinates(s.coordinatesJson))
+    : [];
+  const startCoord: [number, number] | null = allCoordinates.length > 0 ? allCoordinates[0] : null;
+  const endCoord: [number, number] | null = allCoordinates.length > 0 ? allCoordinates[allCoordinates.length - 1] : null;
 
   return (
     <div className="map-page">
-      <div className="map-container">
+      {/* ── 왼쪽 사이드바 ── */}
+      <aside className="sidebar">
         {/* 헤더 */}
-        <header className="map-header">
-          <button className="back-button" onClick={handleBack}>
-            ← 뒤로
-          </button>
-          <div className="route-title">
-            <span className="location">{state.startLocation}</span>
-            <span className="arrow">→</span>
-            <span className="location">{state.endLocation}</span>
+        <div className="sidebar-header">
+          <button className="back-button" onClick={() => navigate('/')}>←</button>
+          <h2 className="sidebar-title">
+            {state ? (
+              <>
+                {state.startLocation}
+                <span className="arrow">→</span>
+                {state.endLocation}
+              </>
+            ) : '경로 탐색'}
+          </h2>
+        </div>
+
+        {/* 좌표 입력 */}
+        {!state && (
+          <div className="coord-input">
+            <div className="coord-row">
+              <label>출발</label>
+              <input type="text" value={startLat} onChange={e => setStartLat(e.target.value)} placeholder="위도" />
+              <input type="text" value={startLon} onChange={e => setStartLon(e.target.value)} placeholder="경도" />
+            </div>
+            <div className="coord-row">
+              <label>도착</label>
+              <input type="text" value={endLat} onChange={e => setEndLat(e.target.value)} placeholder="위도" />
+              <input type="text" value={endLon} onChange={e => setEndLon(e.target.value)} placeholder="경도" />
+            </div>
+            <button className="search-btn" onClick={handleSearch} disabled={isLoading}>
+              {isLoading ? '탐색 중...' : '경로 탐색'}
+            </button>
           </div>
-        </header>
+        )}
 
         {/* 경로 옵션 */}
         <div className="route-options">
           <button
             className={`route-option ${selectedRoute === 'safe' ? 'active' : ''}`}
-            onClick={() => setSelectedRoute('safe')}
+            onClick={() => handleRouteChange('safe')}
           >
-            🛡️ 안전 경로
+            안전 경로
           </button>
           <button
             className={`route-option ${selectedRoute === 'fast' ? 'active' : ''}`}
-            onClick={() => setSelectedRoute('fast')}
+            onClick={() => handleRouteChange('fast')}
           >
-            ⚡ 빠른 경로
-          </button>
-          <button
-            className={`route-option ${selectedRoute === 'short' ? 'active' : ''}`}
-            onClick={() => setSelectedRoute('short')}
-          >
-            📏 최단 경로
+            최단 경로
           </button>
         </div>
 
-        {/* 지도 영역 */}
-        <div className="map-area" ref={mapRef}>
-          {isLoading ? (
-            <div className="loading">
-              <div className="spinner"></div>
-              <p>경로를 탐색하고 있습니다...</p>
-            </div>
-          ) : (
-            <div className="map-placeholder">
-              <p>🗺️ T map API 연동 영역</p>
-              <p className="map-note">
-                실제 구현 시 T map API를 연동하여<br />
-                난이도별 색상이 표시된 경로가 나타납니다.
-              </p>
-            </div>
-          )}
-        </div>
+        {/* 에러 */}
+        {error && <div className="error-bar">{error}</div>}
 
-        {/* 경로 정보 패널 */}
-        {routeInfo && !isLoading && (
-          <div className="info-panel">
-            <div className="info-header">
-              <h3>경로 정보</h3>
-              <div 
-                className="difficulty-badge"
-                style={{ backgroundColor: getDifficultyColor(routeInfo.avgDifficulty) }}
-              >
-                {getDifficultyLabel(routeInfo.avgDifficulty)}
-              </div>
-            </div>
-
+        {/* 경로 정보 */}
+        {routeResult && !isLoading && (
+          <div className="route-info">
+            {/* 요약 통계 */}
             <div className="info-stats">
               <div className="stat">
-                <span className="stat-value">{routeInfo.distance}km</span>
+                <span className="stat-value">{(routeResult.totalDistanceM / 1000).toFixed(1)}<small>km</small></span>
                 <span className="stat-label">거리</span>
               </div>
               <div className="stat">
-                <span className="stat-value">{routeInfo.duration}분</span>
+                <span className="stat-value">{routeResult.estimatedMinutes}<small>분</small></span>
                 <span className="stat-label">예상 시간</span>
               </div>
               <div className="stat">
-                <span className="stat-value">{routeInfo.avgDifficulty}점</span>
+                <span className="stat-value">
+                  {routeResult.avgDifficulty}<small>점</small>
+                </span>
                 <span className="stat-label">평균 난이도</span>
               </div>
             </div>
 
+            <div
+              className="difficulty-summary"
+              style={{ borderLeftColor: getDifficultyColor(routeResult.avgDifficulty) }}
+            >
+              <span
+                className="difficulty-badge"
+                style={{ backgroundColor: getDifficultyColor(routeResult.avgDifficulty) }}
+              >
+                {getDifficultyLabel(routeResult.avgDifficulty)}
+              </span>
+              <span className="difficulty-text">
+                이 경로의 평균 난이도는 <strong>{routeResult.avgDifficulty}점</strong>입니다
+              </span>
+            </div>
+
             {/* 구간별 난이도 */}
             <div className="segments-section">
-              <h4>구간별 난이도</h4>
+              <h4>주요 구간 <span className="count">{routeResult.segments.length}개</span></h4>
               <div className="segments-list">
-                {routeInfo.segments.map((segment, index) => (
-                  <div key={index} className="segment-item">
-                    <div 
-                      className="segment-color"
-                      style={{ backgroundColor: getDifficultyColor(segment.difficulty) }}
-                    />
-                    <div className="segment-info">
-                      <span className="segment-desc">{segment.description}</span>
-                      <span className="segment-score">{segment.difficulty}점</span>
+                {routeResult.segments
+                  .filter(s => s.name)
+                  .slice(0, 15)
+                  .map((segment) => (
+                    <div key={segment.edgeId} className="segment-item">
+                      <div
+                        className="segment-color"
+                        style={{ backgroundColor: getDifficultyColor(segment.difficulty) }}
+                      />
+                      <span className="segment-name">{segment.name}</span>
+                      <span className="segment-highway">{segment.highway}</span>
+                      <span className="segment-score">{segment.difficulty}</span>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
-            {/* 난이도 범례 */}
+            {/* 범례 */}
             <div className="legend">
               <div className="legend-item">
-                <span className="legend-color" style={{ backgroundColor: '#00ff88' }}></span>
-                <span>쉬움 (0-30)</span>
+                <span className="legend-color" style={{ backgroundColor: '#00ff88' }} />
+                <span>쉬움 (~31)</span>
               </div>
               <div className="legend-item">
-                <span className="legend-color" style={{ backgroundColor: '#ffcc00' }}></span>
-                <span>보통 (31-60)</span>
+                <span className="legend-color" style={{ backgroundColor: '#ffcc00' }} />
+                <span>보통 (31~42)</span>
               </div>
               <div className="legend-item">
-                <span className="legend-color" style={{ backgroundColor: '#ff4444' }}></span>
-                <span>어려움 (61-100)</span>
+                <span className="legend-color" style={{ backgroundColor: '#ff4444' }} />
+                <span>어려움 (42~)</span>
               </div>
             </div>
-
-            <button className="feedback-button" onClick={handleFeedback}>
-              💬 경로 피드백 남기기
-            </button>
           </div>
         )}
-      </div>
+
+        {/* 초기 안내 */}
+        {!routeResult && !isLoading && !error && (
+          <div className="empty-state">
+            <p>출발지와 도착지를 입력하고<br />"경로 탐색" 버튼을 눌러주세요</p>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="loading-state">
+            <div className="spinner" />
+            <p>경로를 탐색하고 있습니다...</p>
+          </div>
+        )}
+      </aside>
+
+      {/* ── 오른쪽 지도 영역 ── */}
+      <main className="map-area">
+        <MapContainer
+          center={GANGNAM_CENTER}
+          zoom={DEFAULT_ZOOM}
+          style={{ width: '100%', height: '100%' }}
+          preferCanvas={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          {routeResult?.segments.map((segment) => {
+            const coords = parseCoordinates(segment.coordinatesJson);
+            if (coords.length < 2) return null;
+            return (
+              <Polyline
+                key={segment.edgeId}
+                positions={coords}
+                pathOptions={{
+                  color: getDifficultyColor(segment.difficulty),
+                  weight: 6,
+                  opacity: 0.85,
+                }}
+              >
+                <Popup>
+                  <div>
+                    <strong>{segment.name ?? '이름 없음'}</strong><br />
+                    도로 유형: {segment.highway}<br />
+                    난이도: {segment.difficulty}점<br />
+                    거리: {Math.round(segment.lengthM)}m
+                  </div>
+                </Popup>
+              </Polyline>
+            );
+          })}
+
+          {startCoord && (
+            <Marker position={startCoord}>
+              <Popup>출발</Popup>
+            </Marker>
+          )}
+          {endCoord && (
+            <Marker position={endCoord}>
+              <Popup>도착</Popup>
+            </Marker>
+          )}
+
+          {allCoordinates.length > 0 && (
+            <FitBounds coordinates={allCoordinates} />
+          )}
+        </MapContainer>
+      </main>
     </div>
   );
 };
