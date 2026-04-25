@@ -58,6 +58,48 @@ export const isWithinGangnam = (lat: number, lon: number): boolean => {
   );
 };
 
+export interface PlaceSearchResult extends GeocodedPlace {
+  withinGangnam: boolean;
+}
+
+/**
+ * 키워드로 후보 장소 목록 검색 (자동완성용).
+ * 강남구 안/밖 모두 반환하되 withinGangnam 플래그로 구분.
+ */
+export const searchPlaces = async (keyword: string, limit = 7): Promise<PlaceSearchResult[]> => {
+  const apiKey = import.meta.env.VITE_KAKAO_REST_API_KEY;
+  if (!apiKey || apiKey === 'your_kakao_rest_api_key_here') {
+    throw new GeocodeError(
+      'NO_API_KEY',
+      '카카오 API 키가 설정되지 않았습니다. .env.local에 VITE_KAKAO_REST_API_KEY를 등록해주세요.'
+    );
+  }
+
+  let response;
+  try {
+    response = await axios.get<KakaoLocalResponse>(KAKAO_KEYWORD_URL, {
+      params: { query: keyword, size: Math.min(Math.max(limit, 1), 15) },
+      headers: { Authorization: `KakaoAK ${apiKey}` },
+      timeout: 5000,
+    });
+  } catch {
+    throw new GeocodeError('NETWORK_ERROR', `'${keyword}' 검색 중 오류가 발생했습니다.`);
+  }
+
+  const docs = response.data.documents ?? [];
+  return docs.map((d) => {
+    const lat = parseFloat(d.y);
+    const lon = parseFloat(d.x);
+    return {
+      name: d.place_name,
+      address: d.road_address_name || d.address_name,
+      lat,
+      lon,
+      withinGangnam: isWithinGangnam(lat, lon),
+    };
+  });
+};
+
 /**
  * 키워드를 좌표로 변환. 강남구 밖이면 OUT_OF_BOUNDS 에러를 던지되 place 정보는 함께 전달.
  */

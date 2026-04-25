@@ -1,19 +1,35 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
 
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+// 커스텀 원형 마커 (출발 = 파랑, 도착 = 빨강)
+const createMarkerIcon = (color: string, materialIcon: string) =>
+  L.divIcon({
+    className: 'custom-route-marker',
+    html: `
+      <div style="
+        position: relative;
+        width: 40px; height: 40px;
+        background: ${color};
+        border: 3px solid white;
+        border-radius: 50%;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.05);
+        display: flex; align-items: center; justify-content: center;
+      ">
+        <span class="material-symbols-outlined" style="color: white; font-size: 22px; font-variation-settings: 'FILL' 1;">${materialIcon}</span>
+      </div>
+    `,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    popupAnchor: [0, -20],
+    tooltipAnchor: [0, -22],
+  });
 
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
+const START_ICON = createMarkerIcon('#195de6', 'trip_origin');
+const END_ICON = createMarkerIcon('#ef4444', 'flag');
 
 // ── Types ──
 
@@ -483,13 +499,19 @@ const MapPage = () => {
           })}
 
           {startCoord && (
-            <Marker position={startCoord}>
-              <Popup>출발</Popup>
+            <Marker position={startCoord} icon={START_ICON}>
+              <Tooltip direction="top" offset={[0, -8]} opacity={1} permanent className="route-marker-label route-marker-start">
+                출발지
+              </Tooltip>
+              <Popup>{state?.startLocation ?? '출발지'}</Popup>
             </Marker>
           )}
           {endCoord && (
-            <Marker position={endCoord}>
-              <Popup>도착</Popup>
+            <Marker position={endCoord} icon={END_ICON}>
+              <Tooltip direction="top" offset={[0, -8]} opacity={1} permanent className="route-marker-label route-marker-end">
+                목적지
+              </Tooltip>
+              <Popup>{state?.endLocation ?? '목적지'}</Popup>
             </Marker>
           )}
 
