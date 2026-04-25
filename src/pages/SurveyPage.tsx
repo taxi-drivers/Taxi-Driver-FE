@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './SurveyPage.css';
 
 interface SurveyQuestion {
   id: number;
@@ -26,114 +25,191 @@ const SurveyPage = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
 
   const handleAnswer = (questionId: number, value: number) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: value,
-    }));
-
-    // 다음 질문으로 자동 이동
+    setAnswers((prev) => ({ ...prev, [questionId]: value }));
     if (currentQuestion < surveyQuestions.length - 1) {
-      setTimeout(() => {
-        setCurrentQuestion((prev) => prev + 1);
-      }, 300);
+      setTimeout(() => setCurrentQuestion((prev) => prev + 1), 300);
     }
   };
 
   const handleSubmit = () => {
-    // 모든 질문에 답변했는지 확인
     if (Object.keys(answers).length < surveyQuestions.length) {
       alert('모든 질문에 답변해주세요.');
       return;
     }
 
-    // 점수 계산 (높을수록 숙련)
     const totalScore = Object.values(answers).reduce((sum, val) => sum + val, 0);
     const avgScore = totalScore / surveyQuestions.length;
 
     let skillLevel: string;
-    if (avgScore <= 2) {
-      skillLevel = 'BEGINNER';
-    } else if (avgScore <= 3.5) {
-      skillLevel = 'INTERMEDIATE';
-    } else {
-      skillLevel = 'ADVANCED';
-    }
+    if (avgScore <= 2) skillLevel = 'BEGINNER';
+    else if (avgScore <= 3.5) skillLevel = 'INTERMEDIATE';
+    else skillLevel = 'ADVANCED';
 
-    // 결과 저장 및 메인 페이지로 이동
     localStorage.setItem('skillLevel', skillLevel);
     localStorage.setItem('surveyScore', avgScore.toFixed(2));
 
     alert(`설문이 완료되었습니다!\n숙련도: ${
-      skillLevel === 'BEGINNER' ? '초보' : 
+      skillLevel === 'BEGINNER' ? '초보' :
       skillLevel === 'INTERMEDIATE' ? '중급' : '숙련'
     }`);
     navigate('/');
   };
 
-  const progress = (Object.keys(answers).length / surveyQuestions.length) * 100;
+  const answeredCount = Object.keys(answers).length;
+  const progress = (answeredCount / surveyQuestions.length) * 100;
+  const isComplete = answeredCount === surveyQuestions.length;
 
   return (
-    <div className="survey-page">
-      <div className="survey-container">
-        <header className="survey-header">
-          <h1>운전 숙련도 설문</h1>
-          <p>10개의 질문에 답변해주세요 (1: 매우 아니다 ~ 5: 매우 그렇다)</p>
-        </header>
-
-        <div className="progress-bar">
-          <div 
-            className="progress-fill" 
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <p className="progress-text">
-          {Object.keys(answers).length} / {surveyQuestions.length} 완료
-        </p>
-
-        <div className="questions-container">
-          {surveyQuestions.map((q, index) => (
-            <div
-              key={q.id}
-              className={`question-card ${
-                currentQuestion === index ? 'active' : ''
-              } ${answers[q.id] ? 'answered' : ''}`}
-            >
-              <div className="question-number">Q{q.id}</div>
-              <p className="question-text">{q.question}</p>
-              <div className="answer-options">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <button
-                    key={value}
-                    className={`answer-btn ${
-                      answers[q.id] === value ? 'selected' : ''
-                    }`}
-                    onClick={() => handleAnswer(q.id, value)}
-                  >
-                    {value}
-                  </button>
-                ))}
-              </div>
-              <div className="answer-labels">
-                <span>매우 아니다</span>
-                <span>매우 그렇다</span>
-              </div>
+    <div className="min-h-screen bg-[#f6f6f8]">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white">
+        <div className="max-w-[1100px] mx-auto px-6 md:px-10 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary rounded-lg w-10 h-10 flex items-center justify-center text-white">
+              <span className="material-symbols-outlined text-[22px]">directions_car</span>
             </div>
-          ))}
-        </div>
-
-        <div className="survey-actions">
-          <button className="back-btn" onClick={() => navigate('/')}>
-            돌아가기
-          </button>
+            <div className="flex flex-col">
+              <h2 className="text-lg font-bold tracking-tight text-slate-900 leading-none">SafeDrive</h2>
+              <p className="text-[11px] text-slate-400 font-medium mt-1">숙련도 설문</p>
+            </div>
+          </div>
           <button
-            className="submit-btn"
-            onClick={handleSubmit}
-            disabled={Object.keys(answers).length < surveyQuestions.length}
+            onClick={() => navigate('/')}
+            className="w-11 h-11 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+            aria-label="닫기"
           >
-            제출하기
+            <span className="material-symbols-outlined">close</span>
           </button>
+        </div>
+      </header>
+
+      {/* Sticky progress bar */}
+      <div className="sticky top-[81px] z-40 bg-[#f6f6f8] border-b border-slate-200">
+        <div className="max-w-[820px] mx-auto px-6 md:px-10 py-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">진행률</span>
+            <span className="text-xs font-bold text-primary tabular-nums">
+              {answeredCount} / {surveyQuestions.length}
+            </span>
+          </div>
+          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
       </div>
+
+      <main className="px-6 md:px-10 py-10">
+        <div className="flex flex-col max-w-[820px] mx-auto w-full gap-8">
+          {/* Hero */}
+          <div className="flex flex-col gap-5 p-8 md:p-10 bg-white rounded-2xl shadow-sm border border-slate-200">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 rounded-xl w-12 h-12 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[26px] text-primary">psychology</span>
+              </div>
+              <span className="text-[11px] font-bold text-primary uppercase tracking-[0.2em]">Driving Profile Survey</span>
+            </div>
+            <div className="flex flex-col gap-3">
+              <h1 className="text-3xl md:text-[34px] font-extrabold tracking-tight text-slate-900 leading-tight">
+                운전 숙련도 설문
+              </h1>
+              <p className="text-base text-slate-500 leading-relaxed">
+                평소 운전 습관과 자신감 수준을 알려주세요. 10개 문항에 답변하시면,
+                여러분의 숙련도에 맞는 <strong className="text-primary">맞춤형 안전 경로</strong>를 추천해드립니다.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-sm text-slate-600 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center h-6 px-2.5 rounded-full bg-slate-100 text-[11px] font-bold">1</span>
+                <span className="text-slate-400 text-xs">매우 아니다</span>
+              </div>
+              <span className="text-slate-300">—</span>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center h-6 px-2.5 rounded-full bg-primary text-white text-[11px] font-bold">5</span>
+                <span className="text-slate-400 text-xs">매우 그렇다</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Questions */}
+          <div className="flex flex-col gap-5">
+            {surveyQuestions.map((q, index) => {
+              const isAnswered = answers[q.id] !== undefined;
+              const isActive = currentQuestion === index;
+              return (
+                <div
+                  key={q.id}
+                  className={`flex flex-col p-7 md:p-8 bg-white rounded-2xl border shadow-sm transition-all ${
+                    isActive
+                      ? 'border-primary/40 shadow-md ring-2 ring-primary/10'
+                      : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start gap-4 mb-7">
+                    <span className={`flex items-center justify-center w-9 h-9 rounded-full text-sm font-bold shrink-0 transition-colors ${
+                      isAnswered
+                        ? 'bg-primary text-white'
+                        : 'bg-primary/10 text-primary'
+                    }`}>
+                      {isAnswered ? (
+                        <span className="material-symbols-outlined text-[18px]">check</span>
+                      ) : (
+                        q.id
+                      )}
+                    </span>
+                    <h3 className="text-base md:text-[17px] font-bold text-slate-900 leading-snug pt-1.5">
+                      {q.question}
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-3 md:gap-4 px-1">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <label key={value} className="cursor-pointer flex justify-center">
+                        <input
+                          type="radio"
+                          name={`q${q.id}`}
+                          value={value}
+                          checked={answers[q.id] === value}
+                          onChange={() => handleAnswer(q.id, value)}
+                          className="peer sr-only"
+                        />
+                        <div className="flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full border-2 border-slate-200 text-slate-500 font-bold text-base peer-checked:border-primary peer-checked:bg-primary peer-checked:text-white peer-checked:shadow-lg peer-checked:shadow-primary/25 hover:border-primary/50 hover:text-primary transition-all">
+                          {value}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-between mt-5 px-1 text-[11px] uppercase tracking-wider font-bold text-slate-400">
+                    <span>매우 아니다</span>
+                    <span>매우 그렇다</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-4 pb-12 pt-2">
+            <button
+              onClick={() => navigate('/')}
+              className="flex-1 h-14 rounded-xl border-2 border-slate-200 bg-white text-slate-600 font-semibold hover:border-slate-300 hover:bg-slate-50 transition-colors"
+            >
+              돌아가기
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!isComplete}
+              className="flex-[2] h-14 rounded-xl bg-primary text-white font-bold shadow-lg shadow-primary/25 hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 text-[15px]"
+            >
+              <span>{isComplete ? '설문 제출하기' : `${surveyQuestions.length - answeredCount}개 문항 남음`}</span>
+              {isComplete && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
+            </button>
+          </div>
+        </div>
+      </main>
     </div>
   );
 };

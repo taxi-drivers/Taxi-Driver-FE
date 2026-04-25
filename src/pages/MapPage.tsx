@@ -4,9 +4,7 @@ import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
-import './MapPage.css';
 
-// Leaflet 기본 마커 아이콘 fix
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
@@ -17,7 +15,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// ── 타입 정의 ──
+// ── Types ──
 
 interface LocationState {
   startLocation: string;
@@ -44,17 +42,17 @@ interface RouteResult {
   segments: RouteSegment[];
 }
 
-// ── 유틸 ──
+// ── Utils ──
 
 const getDifficultyColor = (difficulty: number): string => {
-  if (difficulty <= 31) return '#00ff88';
-  if (difficulty <= 42) return '#ffcc00';
-  return '#ff4444';
+  if (difficulty <= 30.7) return '#22c55e';
+  if (difficulty <= 41.5) return '#f59e0b';
+  return '#ef4444';
 };
 
 const getDifficultyLabel = (difficulty: number): string => {
-  if (difficulty <= 31) return '쉬움';
-  if (difficulty <= 42) return '보통';
+  if (difficulty <= 30.7) return '쉬움';
+  if (difficulty <= 41.5) return '보통';
   return '어려움';
 };
 
@@ -67,23 +65,56 @@ const parseCoordinates = (json: string): [number, number][] => {
   }
 };
 
-// ── 지도 범위 자동 조정 ──
+// ── Map auto-fit ──
 
 const FitBounds = ({ coordinates }: { coordinates: [number, number][] }) => {
   const map = useMap();
   useEffect(() => {
     if (coordinates.length > 0) {
       const bounds = L.latLngBounds(coordinates);
-      map.fitBounds(bounds, { padding: [60, 60] });
+      map.fitBounds(bounds, { padding: [80, 80] });
     }
   }, [map, coordinates]);
   return null;
 };
 
+// ── Floating zoom controls ──
+
+const ZoomControls = () => {
+  const map = useMap();
+  return (
+    <div className="absolute bottom-8 right-8 z-[1000] flex flex-col gap-3">
+      <div className="flex flex-col bg-white/95 backdrop-blur-sm rounded-xl shadow-lg overflow-hidden border border-slate-200">
+        <button
+          onClick={() => map.zoomIn()}
+          className="w-11 h-11 flex items-center justify-center text-slate-600 hover:bg-slate-50 border-b border-slate-200 transition-colors"
+          aria-label="확대"
+        >
+          <span className="material-symbols-outlined text-[20px]">add</span>
+        </button>
+        <button
+          onClick={() => map.zoomOut()}
+          className="w-11 h-11 flex items-center justify-center text-slate-600 hover:bg-slate-50 transition-colors"
+          aria-label="축소"
+        >
+          <span className="material-symbols-outlined text-[20px]">remove</span>
+        </button>
+      </div>
+      <button
+        onClick={() => map.setView([37.5050, 127.0500], 14)}
+        className="w-11 h-11 flex items-center justify-center bg-white/95 backdrop-blur-sm rounded-xl shadow-lg text-primary border border-slate-200 hover:bg-slate-50 transition-colors"
+        aria-label="강남구 중심"
+      >
+        <span className="material-symbols-outlined text-[20px]">my_location</span>
+      </button>
+    </div>
+  );
+};
+
 const GANGNAM_CENTER: [number, number] = [37.5050, 127.0500];
 const DEFAULT_ZOOM = 14;
 
-// ── 메인 컴포넌트 ──
+// ── Main Component ──
 
 const MapPage = () => {
   const navigate = useNavigate();
@@ -104,9 +135,7 @@ const MapPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = {
-        startLat: sLat, startLon: sLon, endLat: eLat, endLon: eLon,
-      };
+      const body: Record<string, unknown> = { startLat: sLat, startLon: sLon, endLat: eLat, endLon: eLon };
       if (mode === 'safe') {
         body.vulnerabilities = ['AVOID_HIGHWAY', 'AVOID_COMPLEX_INTERSECTION', 'AVOID_ACCIDENT_PRONE'];
       }
@@ -156,158 +185,268 @@ const MapPage = () => {
   const endCoord: [number, number] | null = allCoordinates.length > 0 ? allCoordinates[allCoordinates.length - 1] : null;
 
   return (
-    <div className="map-page">
-      {/* ── 왼쪽 사이드바 ── */}
-      <aside className="sidebar">
-        {/* 헤더 */}
-        <div className="sidebar-header">
-          <button className="back-button" onClick={() => navigate('/')}>←</button>
-          <h2 className="sidebar-title">
-            {state ? (
-              <>
-                {state.startLocation}
-                <span className="arrow">→</span>
-                {state.endLocation}
-              </>
-            ) : '경로 탐색'}
-          </h2>
-        </div>
-
-        {/* 좌표 입력 */}
-        {!state && (
-          <div className="coord-input">
-            <div className="coord-row">
-              <label>출발</label>
-              <input type="text" value={startLat} onChange={e => setStartLat(e.target.value)} placeholder="위도" />
-              <input type="text" value={startLon} onChange={e => setStartLon(e.target.value)} placeholder="경도" />
-            </div>
-            <div className="coord-row">
-              <label>도착</label>
-              <input type="text" value={endLat} onChange={e => setEndLat(e.target.value)} placeholder="위도" />
-              <input type="text" value={endLon} onChange={e => setEndLon(e.target.value)} placeholder="경도" />
-            </div>
-            <button className="search-btn" onClick={handleSearch} disabled={isLoading}>
-              {isLoading ? '탐색 중...' : '경로 탐색'}
-            </button>
+    <div className="flex h-screen w-full overflow-hidden bg-[#f6f6f8]">
+      {/* ── Sidebar ── */}
+      <aside className="flex w-[340px] flex-col border-r border-slate-200 bg-white shrink-0 overflow-y-auto">
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-200">
+          <div className="bg-primary rounded-lg w-10 h-10 flex items-center justify-center text-white">
+            <span className="material-symbols-outlined text-[22px]">explore</span>
           </div>
-        )}
-
-        {/* 경로 옵션 */}
-        <div className="route-options">
-          <button
-            className={`route-option ${selectedRoute === 'safe' ? 'active' : ''}`}
-            onClick={() => handleRouteChange('safe')}
-          >
-            안전 경로
-          </button>
-          <button
-            className={`route-option ${selectedRoute === 'fast' ? 'active' : ''}`}
-            onClick={() => handleRouteChange('fast')}
-          >
-            최단 경로
-          </button>
+          <div className="flex flex-col">
+            <h1 className="text-lg font-bold tracking-tight text-slate-900 leading-none">SafeDrive</h1>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">강남구 안전 경로</p>
+          </div>
         </div>
 
-        {/* 에러 */}
-        {error && <div className="error-bar">{error}</div>}
+        <div className="flex flex-col p-6 gap-6 flex-1">
+          {/* Back navigation */}
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 px-3 py-2 -mx-3 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors text-sm font-medium self-start"
+          >
+            <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+            <span>메인으로</span>
+          </button>
 
-        {/* 경로 정보 */}
-        {routeResult && !isLoading && (
-          <div className="route-info">
-            {/* 요약 통계 */}
-            <div className="info-stats">
-              <div className="stat">
-                <span className="stat-value">{(routeResult.totalDistanceM / 1000).toFixed(1)}<small>km</small></span>
-                <span className="stat-label">거리</span>
-              </div>
-              <div className="stat">
-                <span className="stat-value">{routeResult.estimatedMinutes}<small>분</small></span>
-                <span className="stat-label">예상 시간</span>
-              </div>
-              <div className="stat">
-                <span className="stat-value">
-                  {routeResult.avgDifficulty}<small>점</small>
-                </span>
-                <span className="stat-label">평균 난이도</span>
+          {/* Route title (when state exists) */}
+          {state && (
+            <div className="px-4 py-3 bg-primary/5 rounded-xl border border-primary/15">
+              <p className="text-[10px] text-primary font-bold tracking-[0.18em] uppercase mb-1.5">현재 경로</p>
+              <p className="text-sm font-bold text-slate-900 leading-snug">
+                {state.startLocation} → {state.endLocation}
+              </p>
+            </div>
+          )}
+
+          {/* Coordinate input (when no state) */}
+          {!state && (
+            <div className="flex flex-col gap-4">
+              <p className="text-[10px] text-slate-400 font-bold tracking-[0.18em] uppercase">좌표 직접 입력</p>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-slate-700">출발 (위도, 경도)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={startLat}
+                      onChange={e => setStartLat(e.target.value)}
+                      placeholder="위도"
+                      className="h-10 px-3 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all"
+                    />
+                    <input
+                      type="text"
+                      value={startLon}
+                      onChange={e => setStartLon(e.target.value)}
+                      placeholder="경도"
+                      className="h-10 px-3 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-semibold text-slate-700">도착 (위도, 경도)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={endLat}
+                      onChange={e => setEndLat(e.target.value)}
+                      placeholder="위도"
+                      className="h-10 px-3 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all"
+                    />
+                    <input
+                      type="text"
+                      value={endLon}
+                      onChange={e => setEndLon(e.target.value)}
+                      placeholder="경도"
+                      className="h-10 px-3 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={handleSearch}
+                  disabled={isLoading}
+                  className="w-full h-11 mt-1 bg-primary text-white text-sm font-bold rounded-lg hover:brightness-110 transition-all shadow-md shadow-primary/20 disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+                >
+                  <span>{isLoading ? '탐색 중...' : '경로 탐색'}</span>
+                  {!isLoading && <span className="material-symbols-outlined text-[16px]">search</span>}
+                </button>
               </div>
             </div>
+          )}
 
-            <div
-              className="difficulty-summary"
-              style={{ borderLeftColor: getDifficultyColor(routeResult.avgDifficulty) }}
-            >
-              <span
-                className="difficulty-badge"
-                style={{ backgroundColor: getDifficultyColor(routeResult.avgDifficulty) }}
+          {/* Route mode toggle */}
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] text-slate-400 font-bold tracking-[0.18em] uppercase">경로 모드</p>
+            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+              <button
+                onClick={() => handleRouteChange('safe')}
+                className={`flex-1 h-10 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  selectedRoute === 'safe'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                {getDifficultyLabel(routeResult.avgDifficulty)}
-              </span>
-              <span className="difficulty-text">
-                이 경로의 평균 난이도는 <strong>{routeResult.avgDifficulty}점</strong>입니다
-              </span>
+                <span className="material-symbols-outlined text-[16px]">shield</span>
+                <span>안전 경로</span>
+              </button>
+              <button
+                onClick={() => handleRouteChange('fast')}
+                className={`flex-1 h-10 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  selectedRoute === 'fast'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">bolt</span>
+                <span>최단 경로</span>
+              </button>
             </div>
+          </div>
 
-            {/* 구간별 난이도 */}
-            <div className="segments-section">
-              <h4>주요 구간 <span className="count">{routeResult.segments.length}개</span></h4>
-              <div className="segments-list">
-                {routeResult.segments
-                  .filter(s => s.name)
-                  .slice(0, 15)
-                  .map((segment) => (
-                    <div key={segment.edgeId} className="segment-item">
+          {/* Error */}
+          {error && (
+            <div className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs leading-relaxed">
+              <span className="material-symbols-outlined text-[18px] shrink-0">error</span>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Loading */}
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center gap-3 py-12">
+              <div className="w-8 h-8 border-2 border-slate-200 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm text-slate-400">경로를 탐색하고 있습니다...</p>
+            </div>
+          )}
+
+          {/* Route result */}
+          {routeResult && !isLoading && (
+            <div className="flex flex-col gap-5">
+              {/* Stats grid */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="flex flex-col items-center justify-center gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-xl font-black text-slate-900 tabular-nums leading-none">
+                    {(routeResult.totalDistanceM / 1000).toFixed(1)}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">km</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-xl font-black text-slate-900 tabular-nums leading-none">
+                    {routeResult.estimatedMinutes}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">분</span>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span
+                    className="text-xl font-black tabular-nums leading-none"
+                    style={{ color: getDifficultyColor(routeResult.avgDifficulty) }}
+                  >
+                    {routeResult.avgDifficulty}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">난이도</span>
+                </div>
+              </div>
+
+              {/* Difficulty summary */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 rounded-xl border-l-4"
+                style={{
+                  borderLeftColor: getDifficultyColor(routeResult.avgDifficulty),
+                  backgroundColor: `${getDifficultyColor(routeResult.avgDifficulty)}10`
+                }}
+              >
+                <span
+                  className="px-2.5 py-1 rounded-md text-[11px] font-bold text-white"
+                  style={{ backgroundColor: getDifficultyColor(routeResult.avgDifficulty) }}
+                >
+                  {getDifficultyLabel(routeResult.avgDifficulty)}
+                </span>
+                <span className="text-xs text-slate-700 leading-snug">
+                  평균 난이도 <strong className="font-bold">{routeResult.avgDifficulty}점</strong>
+                </span>
+              </div>
+
+              {/* Segments list */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-slate-400 font-bold tracking-[0.18em] uppercase">주요 구간</p>
+                  <span className="text-[10px] text-primary font-bold">{routeResult.segments.length}개</span>
+                </div>
+                <div className="flex flex-col gap-1 max-h-72 overflow-y-auto pr-1 -mr-1">
+                  {routeResult.segments
+                    .filter(s => s.name)
+                    .slice(0, 20)
+                    .map((segment) => (
                       <div
-                        className="segment-color"
-                        style={{ backgroundColor: getDifficultyColor(segment.difficulty) }}
-                      />
-                      <span className="segment-name">{segment.name}</span>
-                      <span className="segment-highway">{segment.highway}</span>
-                      <span className="segment-score">{segment.difficulty}</span>
-                    </div>
-                  ))}
+                        key={segment.edgeId}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: getDifficultyColor(segment.difficulty) }}
+                        />
+                        <span className="text-xs text-slate-900 truncate flex-1">{segment.name}</span>
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">{segment.highway}</span>
+                        <span
+                          className="text-xs font-bold tabular-nums"
+                          style={{ color: getDifficultyColor(segment.difficulty) }}
+                        >
+                          {segment.difficulty.toFixed(1)}
+                        </span>
+                      </div>
+                    ))}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* 범례 */}
-            <div className="legend">
-              <div className="legend-item">
-                <span className="legend-color" style={{ backgroundColor: '#00ff88' }} />
-                <span>쉬움 (~31)</span>
+          {/* Empty state */}
+          {!routeResult && !isLoading && !error && (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <div className="bg-primary/10 rounded-2xl w-14 h-14 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[28px] text-primary">route</span>
               </div>
-              <div className="legend-item">
-                <span className="legend-color" style={{ backgroundColor: '#ffcc00' }} />
-                <span>보통 (31~42)</span>
+              <p className="text-sm text-slate-400 leading-relaxed max-w-[220px]">
+                {state ? '경로를 불러오는 중입니다...' : '출발지와 도착지를 입력하고\n"경로 탐색" 버튼을 눌러주세요'}
+              </p>
+            </div>
+          )}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Legend */}
+          <div className="pt-5 border-t border-slate-100">
+            <p className="text-[10px] text-slate-400 font-bold tracking-[0.18em] uppercase mb-3">난이도 범례</p>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-green-50 border border-green-100">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0" />
+                <span className="text-xs text-green-800 font-semibold">쉬움</span>
+                <span className="text-[10px] text-green-600 ml-auto tabular-nums">~ 30.7</span>
               </div>
-              <div className="legend-item">
-                <span className="legend-color" style={{ backgroundColor: '#ff4444' }} />
-                <span>어려움 (42~)</span>
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="text-xs text-amber-800 font-semibold">보통</span>
+                <span className="text-[10px] text-amber-600 ml-auto tabular-nums">30.7 ~ 41.5</span>
+              </div>
+              <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-red-50 border border-red-100">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+                <span className="text-xs text-red-800 font-semibold">어려움</span>
+                <span className="text-[10px] text-red-600 ml-auto tabular-nums">41.5 ~</span>
               </div>
             </div>
           </div>
-        )}
-
-        {/* 초기 안내 */}
-        {!routeResult && !isLoading && !error && (
-          <div className="empty-state">
-            <p>출발지와 도착지를 입력하고<br />"경로 탐색" 버튼을 눌러주세요</p>
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="loading-state">
-            <div className="spinner" />
-            <p>경로를 탐색하고 있습니다...</p>
-          </div>
-        )}
+        </div>
       </aside>
 
-      {/* ── 오른쪽 지도 영역 ── */}
-      <main className="map-area">
+      {/* ── Map Area ── */}
+      <main className="flex-1 relative">
         <MapContainer
           center={GANGNAM_CENTER}
           zoom={DEFAULT_ZOOM}
           style={{ width: '100%', height: '100%' }}
           preferCanvas={true}
+          zoomControl={false}
         >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -323,16 +462,20 @@ const MapPage = () => {
                 positions={coords}
                 pathOptions={{
                   color: getDifficultyColor(segment.difficulty),
-                  weight: 6,
-                  opacity: 0.85,
+                  weight: 7,
+                  opacity: 0.9,
                 }}
               >
                 <Popup>
-                  <div>
-                    <strong>{segment.name ?? '이름 없음'}</strong><br />
-                    도로 유형: {segment.highway}<br />
-                    난이도: {segment.difficulty}점<br />
-                    거리: {Math.round(segment.lengthM)}m
+                  <div style={{ fontFamily: 'Public Sans, system-ui, sans-serif', minWidth: 180 }}>
+                    <strong style={{ display: 'block', marginBottom: 4, fontSize: 13 }}>
+                      {segment.name ?? '이름 없음'}
+                    </strong>
+                    <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>
+                      <div>도로 유형: {segment.highway}</div>
+                      <div>난이도: <strong style={{ color: getDifficultyColor(segment.difficulty) }}>{segment.difficulty.toFixed(1)}점</strong></div>
+                      <div>거리: {Math.round(segment.lengthM)}m</div>
+                    </div>
                   </div>
                 </Popup>
               </Polyline>
@@ -350,9 +493,8 @@ const MapPage = () => {
             </Marker>
           )}
 
-          {allCoordinates.length > 0 && (
-            <FitBounds coordinates={allCoordinates} />
-          )}
+          {allCoordinates.length > 0 && <FitBounds coordinates={allCoordinates} />}
+          <ZoomControls />
         </MapContainer>
       </main>
     </div>
