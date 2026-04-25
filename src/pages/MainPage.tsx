@@ -1,19 +1,47 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { geocodeKeyword, GeocodeError } from '../services/geocode';
 
 const MainPage = () => {
   const navigate = useNavigate();
   const [startLocation, setStartLocation] = useState<string>('');
   const [endLocation, setEndLocation] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSearch = async () => {
+    setErrorMessage(null);
     if (!startLocation.trim() || !endLocation.trim()) {
-      alert('출발지와 목적지를 모두 입력해주세요.');
+      setErrorMessage('출발지와 목적지를 모두 입력해주세요.');
       return;
     }
+
     setIsLoading(true);
-    navigate('/map', { state: { startLocation, endLocation } });
+    try {
+      const [start, end] = await Promise.all([
+        geocodeKeyword(startLocation.trim()),
+        geocodeKeyword(endLocation.trim()),
+      ]);
+
+      navigate('/map', {
+        state: {
+          startLocation: start.name,
+          endLocation: end.name,
+          startLat: start.lat,
+          startLon: start.lon,
+          endLat: end.lat,
+          endLon: end.lon,
+        },
+      });
+    } catch (err) {
+      if (err instanceof GeocodeError) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('주소 변환 중 알 수 없는 오류가 발생했습니다.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -103,12 +131,19 @@ const MainPage = () => {
                   </div>
                 </div>
 
+                {errorMessage && (
+                  <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs leading-relaxed whitespace-pre-line">
+                    <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
                 <button
                   onClick={handleSearch}
                   disabled={isLoading}
-                  className="mt-2 w-full h-12 bg-primary hover:brightness-110 text-white text-[15px] font-bold rounded-xl transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="mt-1 w-full h-12 bg-primary hover:brightness-110 text-white text-[15px] font-bold rounded-xl transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>{isLoading ? '검색 중...' : '경로 검색'}</span>
+                  <span>{isLoading ? '주소 변환 중...' : '경로 검색'}</span>
                   {!isLoading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
                 </button>
               </div>
