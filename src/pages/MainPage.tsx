@@ -1,19 +1,72 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PlaceSearchInput from '../components/PlaceSearchInput';
+import { geocodeKeyword, GeocodeError, type PlaceSearchResult } from '../services/geocode';
 
 const MainPage = () => {
   const navigate = useNavigate();
   const [startLocation, setStartLocation] = useState<string>('');
   const [endLocation, setEndLocation] = useState<string>('');
+  const [startPlace, setStartPlace] = useState<PlaceSearchResult | null>(null);
+  const [endPlace, setEndPlace] = useState<PlaceSearchResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleStartChange = (v: string) => {
+    setStartLocation(v);
+    if (startPlace && v !== startPlace.name) setStartPlace(null);
+  };
+  const handleEndChange = (v: string) => {
+    setEndLocation(v);
+    if (endPlace && v !== endPlace.name) setEndPlace(null);
+  };
 
   const handleSearch = async () => {
+    setErrorMessage(null);
     if (!startLocation.trim() || !endLocation.trim()) {
-      alert('출발지와 목적지를 모두 입력해주세요.');
+      setErrorMessage('출발지와 목적지를 모두 입력해주세요.');
       return;
     }
+
     setIsLoading(true);
-    navigate('/map', { state: { startLocation, endLocation } });
+    try {
+      // 드롭다운에서 선택된 좌표가 있으면 그걸 우선 사용, 없으면 키워드로 변환
+      const start = startPlace ?? (await geocodeKeyword(startLocation.trim()));
+      const end = endPlace ?? (await geocodeKeyword(endLocation.trim()));
+
+      // 드롭다운 선택만 하고 강남구 외부일 수 있어서 검증
+      if ('withinGangnam' in start && !start.withinGangnam) {
+        throw new GeocodeError(
+          'OUT_OF_BOUNDS',
+          `'${start.name}'은(는) 강남구 외부에 있어 경로 탐색이 불가능합니다.\n현재 서비스 범위는 강남구 내부로 한정됩니다.`
+        );
+      }
+      if ('withinGangnam' in end && !end.withinGangnam) {
+        throw new GeocodeError(
+          'OUT_OF_BOUNDS',
+          `'${end.name}'은(는) 강남구 외부에 있어 경로 탐색이 불가능합니다.\n현재 서비스 범위는 강남구 내부로 한정됩니다.`
+        );
+      }
+
+      navigate('/map', {
+        state: {
+          startLocation: start.name,
+          endLocation: end.name,
+          startLat: start.lat,
+          startLon: start.lon,
+          endLat: end.lat,
+          endLon: end.lon,
+        },
+      });
+    } catch (err) {
+      if (err instanceof GeocodeError) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('주소 변환 중 알 수 없는 오류가 발생했습니다.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -71,44 +124,47 @@ const MainPage = () => {
               <div className="flex flex-col gap-5">
                 <div className="flex flex-col gap-2">
                   <label htmlFor="start" className="text-sm font-semibold text-slate-900">출발지</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px] pointer-events-none">
-                      trip_origin
-                    </span>
-                    <input
-                      id="start"
-                      type="text"
-                      placeholder="출발지를 입력하세요"
-                      value={startLocation}
-                      onChange={(e) => setStartLocation(e.target.value)}
-                      className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all"
-                    />
-                  </div>
+                  <PlaceSearchInput
+                    id="start"
+                    icon="trip_origin"
+                    placeholder="장소명, 도로명, 지번 입력"
+                    value={startLocation}
+                    onChange={handleStartChange}
+                    onSelect={(p) => {
+                      setStartPlace(p);
+                      setErrorMessage(null);
+                    }}
+                  />
                 </div>
 
                 <div className="flex flex-col gap-2">
                   <label htmlFor="end" className="text-sm font-semibold text-slate-900">목적지</label>
-                  <div className="relative">
-                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px] pointer-events-none">
-                      location_on
-                    </span>
-                    <input
-                      id="end"
-                      type="text"
-                      placeholder="목적지를 입력하세요"
-                      value={endLocation}
-                      onChange={(e) => setEndLocation(e.target.value)}
-                      className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary focus:bg-white transition-all"
-                    />
-                  </div>
+                  <PlaceSearchInput
+                    id="end"
+                    icon="location_on"
+                    placeholder="장소명, 도로명, 지번 입력"
+                    value={endLocation}
+                    onChange={handleEndChange}
+                    onSelect={(p) => {
+                      setEndPlace(p);
+                      setErrorMessage(null);
+                    }}
+                  />
                 </div>
+
+                {errorMessage && (
+                  <div className="flex items-start gap-2.5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs leading-relaxed whitespace-pre-line">
+                    <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
 
                 <button
                   onClick={handleSearch}
                   disabled={isLoading}
-                  className="mt-2 w-full h-12 bg-primary hover:brightness-110 text-white text-[15px] font-bold rounded-xl transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="mt-1 w-full h-12 bg-primary hover:brightness-110 text-white text-[15px] font-bold rounded-xl transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span>{isLoading ? '검색 중...' : '경로 검색'}</span>
+                  <span>{isLoading ? '주소 변환 중...' : '경로 검색'}</span>
                   {!isLoading && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
                 </button>
               </div>
