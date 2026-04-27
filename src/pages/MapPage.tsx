@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
+import SegmentDetailPopover, { type SegmentDetailData } from '../components/SegmentDetailPopover';
 
 // 커스텀 원형 마커 (출발 = 파랑, 도착 = 빨강)
 const createMarkerIcon = (color: string, materialIcon: string) =>
@@ -49,6 +50,12 @@ interface RouteSegment {
   lengthM: number;
   difficulty: number;
   coordinatesJson: string;
+  accidentRateScore?: number | null;
+  roadShapeScore?: number | null;
+  roadScaleScore?: number | null;
+  intersectionScore?: number | null;
+  trafficVolumeScore?: number | null;
+  slope?: number | null;
 }
 
 interface RouteResult {
@@ -141,6 +148,7 @@ const MapPage = () => {
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedRoute, setSelectedRoute] = useState<'safe' | 'fast'>('safe');
+  const [hoveredGroupKey, setHoveredGroupKey] = useState<string | null>(null);
 
   const [startLat, setStartLat] = useState('37.4979');
   const [startLon, setStartLon] = useState('127.0276');
@@ -193,6 +201,131 @@ const MapPage = () => {
       searchRoute(sLat, sLon, eLat, eLon, mode);
     }
   };
+
+  // 같은 도로명 연속 엣지를 하나로 묶음 (가중평균 + edgeIds Set)
+  const groupedRoute = useMemo(() => {
+    if (!routeResult) return [];
+    interface Group {
+      key: string;
+      name: string;
+      highway: string;
+      edgeIds: string[];
+      totalLength: number;
+      difficulty: number;
+      accidentRateScore: number | null;
+      roadShapeScore: number | null;
+      roadScaleScore: number | null;
+      intersectionScore: number | null;
+      trafficVolumeScore: number | null;
+      slope: number | null;
+    }
+    const groups: Group[] = [];
+
+    interface Acc {
+      sumLen: number;
+      sumLenDiff: number;
+      score: { sumLen: number; sumWeighted: number }[];
+      slope: { sumLen: number; sumWeighted: number };
+    }
+    const accs = new Map<number, Acc>();
+
+    const scoreFields = [
+      'accidentRateScore',
+      'roadShapeScore',
+      'roadScaleScore',
+      'intersectionScore',
+      'trafficVolumeScore',
+    ] as const;
+
+    routeResult.segments.forEach((s) => {
+      if (!s.name) return;
+      const last = groups[groups.length - 1];
+      const sameAsLast = last && last.name === s.name && last.highway === s.highway;
+
+      let group: Group;
+      let acc: Acc;
+      if (sameAsLast) {
+        group = last!;
+        acc = accs.get(groups.length - 1)!;
+      } else {
+        group = {
+          key: `${s.name}-${groups.length}`,
+          name: s.name,
+          highway: s.highway,
+          edgeIds: [],
+          totalLength: 0,
+          difficulty: 0,
+          accidentRateScore: null,
+          roadShapeScore: null,
+          roadScaleScore: null,
+          intersectionScore: null,
+          trafficVolumeScore: null,
+          slope: null,
+        };
+        groups.push(group);
+        acc = {
+          sumLen: 0,
+          sumLenDiff: 0,
+          score: scoreFields.map(() => ({ sumLen: 0, sumWeighted: 0 })),
+          slope: { sumLen: 0, sumWeighted: 0 },
+        };
+        accs.set(groups.length - 1, acc);
+      }
+
+      group.edgeIds.push(s.edgeId);
+      acc.sumLen += s.lengthM;
+      acc.sumLenDiff += s.lengthM * s.difficulty;
+
+      scoreFields.forEach((f, i) => {
+        const v = s[f];
+        if (v !== null && v !== undefined) {
+          acc.score[i].sumLen += s.lengthM;
+          acc.score[i].sumWeighted += s.lengthM * v;
+        }
+      });
+      if (s.slope !== null && s.slope !== undefined) {
+        acc.slope.sumLen += s.lengthM;
+        acc.slope.sumWeighted += s.lengthM * s.slope;
+      }
+    });
+
+    groups.forEach((g, idx) => {
+      const acc = accs.get(idx)!;
+      g.totalLength = acc.sumLen;
+      g.difficulty = acc.sumLen > 0 ? acc.sumLenDiff / acc.sumLen : 0;
+      scoreFields.forEach((f, i) => {
+        const a = acc.score[i];
+        g[f] = a.sumLen > 0 ? a.sumWeighted / a.sumLen : null;
+      });
+      g.slope = acc.slope.sumLen > 0 ? acc.slope.sumWeighted / acc.slope.sumLen : null;
+    });
+
+    return groups;
+  }, [routeResult]);
+
+  const hoveredGroup = useMemo(
+    () => groupedRoute.find((g) => g.key === hoveredGroupKey) ?? null,
+    [groupedRoute, hoveredGroupKey]
+  );
+  const hoveredEdgeIds = useMemo(
+    () => new Set(hoveredGroup?.edgeIds ?? []),
+    [hoveredGroup]
+  );
+  const popoverData: SegmentDetailData | null = hoveredGroup
+    ? {
+        edgeId: hoveredGroup.key,
+        name: hoveredGroup.name,
+        highway: hoveredGroup.highway,
+        lengthM: hoveredGroup.totalLength,
+        difficulty: hoveredGroup.difficulty,
+        accidentRateScore: hoveredGroup.accidentRateScore,
+        roadShapeScore: hoveredGroup.roadShapeScore,
+        roadScaleScore: hoveredGroup.roadScaleScore,
+        intersectionScore: hoveredGroup.intersectionScore,
+        trafficVolumeScore: hoveredGroup.trafficVolumeScore,
+        slope: hoveredGroup.slope,
+      }
+    : null;
 
   const allCoordinates: [number, number][] = routeResult
     ? routeResult.segments.flatMap(s => parseCoordinates(s.coordinatesJson))
@@ -382,35 +515,47 @@ const MapPage = () => {
                 </span>
               </div>
 
-              {/* Segments list */}
+              {/* Segments list (연속 동일 도로명은 하나로 그룹핑) */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-slate-400 font-bold tracking-[0.18em] uppercase">주요 구간</p>
-                  <span className="text-[10px] text-primary font-bold">{routeResult.segments.length}개</span>
+                  <span className="text-[10px] text-primary font-bold">{groupedRoute.length}개</span>
                 </div>
                 <div className="flex flex-col gap-1 max-h-72 overflow-y-auto pr-1 -mr-1">
-                  {routeResult.segments
-                    .filter(s => s.name)
-                    .slice(0, 20)
-                    .map((segment) => (
+                  {groupedRoute.map((group) => {
+                    const isHovered = hoveredGroupKey === group.key;
+                    const hasMulti = group.edgeIds.length > 1;
+                    return (
                       <div
-                        key={segment.edgeId}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+                        key={group.key}
+                        onMouseEnter={() => setHoveredGroupKey(group.key)}
+                        onMouseLeave={() => setHoveredGroupKey(null)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                          isHovered ? 'bg-primary/5 ring-1 ring-primary/20' : 'hover:bg-slate-50'
+                        }`}
                       >
                         <span
                           className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: getDifficultyColor(segment.difficulty) }}
+                          style={{ backgroundColor: getDifficultyColor(group.difficulty) }}
                         />
-                        <span className="text-xs text-slate-900 truncate flex-1">{segment.name}</span>
-                        <span className="text-[10px] text-slate-400 font-medium uppercase">{segment.highway}</span>
+                        <span className="text-xs text-slate-900 truncate flex-1">
+                          {group.name}
+                          {hasMulti && (
+                            <span className="ml-1.5 text-[10px] text-slate-400 font-medium tabular-nums">
+                              {Math.round(group.totalLength)}m
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium uppercase">{group.highway}</span>
                         <span
                           className="text-xs font-bold tabular-nums"
-                          style={{ color: getDifficultyColor(segment.difficulty) }}
+                          style={{ color: getDifficultyColor(group.difficulty) }}
                         >
-                          {segment.difficulty.toFixed(1)}
+                          {group.difficulty.toFixed(1)}
                         </span>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -472,14 +617,16 @@ const MapPage = () => {
           {routeResult?.segments.map((segment) => {
             const coords = parseCoordinates(segment.coordinatesJson);
             if (coords.length < 2) return null;
+            const isHovered = hoveredEdgeIds.has(segment.edgeId);
             return (
               <Polyline
                 key={segment.edgeId}
                 positions={coords}
                 pathOptions={{
                   color: getDifficultyColor(segment.difficulty),
-                  weight: 7,
-                  opacity: 0.9,
+                  weight: isHovered ? 12 : 7,
+                  opacity: isHovered ? 1 : 0.9,
+                  className: isHovered ? 'route-edge-highlighted' : undefined,
                 }}
               >
                 <Popup>
@@ -519,6 +666,8 @@ const MapPage = () => {
           <ZoomControls />
         </MapContainer>
       </main>
+
+      <SegmentDetailPopover segment={popoverData} />
     </div>
   );
 };

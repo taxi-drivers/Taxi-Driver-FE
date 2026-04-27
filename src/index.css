@@ -14,6 +14,18 @@ body {
   font-family: var(--font-display);
 }
 
+/* 경로 엣지 하이라이트 (사이드바 항목 hover 시 지도에서 강조) */
+.route-edge-highlighted {
+  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.6))
+          drop-shadow(0 0 12px rgba(37, 99, 235, 0.35));
+  transition: filter 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(0, calc(-50% + 6px)); }
+  to   { opacity: 1; transform: translate(0, -50%); }
+}
+
 /* Custom div marker - leaflet 기본 배경/보더 제거 */
 .leaflet-div-icon.custom-route-marker {
   background: transparent;

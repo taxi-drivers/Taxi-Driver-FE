@@ -1,0 +1,17 @@
+# 개발용 Frontend Dockerfile (Vite + React)
+# - Node 20 LTS
+# - 소스는 host에서 volume mount → hot reload (vite HMR) 동작
+# - node_modules는 컨테이너 내부 익명 volume 사용 (host와 분리)
+FROM node:20-alpine
+
+WORKDIR /app
+
+# package.json만 먼저 복사 → 의존성 캐시 활용
+COPY package.json package-lock.json* ./
+
+RUN npm install
+
+EXPOSE 5173
+
+# Vite 개발 서버: 외부 노출 + polling (Windows volume에서 변경 감지 안정성)
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
