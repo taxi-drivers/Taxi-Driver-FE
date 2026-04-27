@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Axios 인스턴스 생성 - 백엔드 포트 8080
+// Axios 인스턴스 생성
+// VITE_API_BASE_URL이 정의되어 있으면 그걸 사용 (Docker는 18080, 로컬 dev는 8080)
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api',
   headers: {
     'Content-Type': 'application/json',
   },
