@@ -175,13 +175,22 @@ const MainPage = () => {
                 <div className="flex-grow border-t border-slate-200" />
               </div>
 
-              <button
-                onClick={() => navigate('/map')}
-                className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 rounded-xl h-12 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
-              >
-                <span className="material-symbols-outlined text-[20px] text-primary">map</span>
-                <span>좌표로 직접 탐색하기</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => navigate('/map')}
+                  className="flex items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl h-12 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-primary">map</span>
+                  <span>좌표 직접 탐색</span>
+                </button>
+                <button
+                  onClick={() => navigate('/map-mode')}
+                  className="flex items-center justify-center gap-2 bg-white border border-slate-200 rounded-xl h-12 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-primary">layers</span>
+                  <span>지도 모드</span>
+                </button>
+              </div>
             </div>
           </div>
         </main>
