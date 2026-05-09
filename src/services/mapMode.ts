@@ -33,11 +33,11 @@ export interface Bounds {
 export const fetchEdgesByBounds = async (bounds: Bounds, zoom?: number): Promise<MapEdge[]> => {
   const params: Record<string, number> = { ...bounds };
   if (zoom !== undefined) params.zoom = zoom;
-  const res = await api.get<MapEdge[]>('/map/edges', { params });
+  const res = await api.get<MapEdge[]>('/api/map/edges', { params });
   return res.data;
 };
 
 export const fetchAreaSummary = async (bounds: Bounds): Promise<AreaSummary> => {
-  const res = await api.post<AreaSummary>('/map/area-summary', bounds);
+  const res = await api.post<AreaSummary>('/api/map/area-summary', bounds);
   return res.data;
 };

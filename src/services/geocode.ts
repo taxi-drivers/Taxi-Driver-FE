@@ -25,12 +25,17 @@ export interface GeocodedPlace {
 }
 
 export class GeocodeError extends Error {
+  public readonly code: 'NO_API_KEY' | 'NO_RESULT' | 'OUT_OF_BOUNDS' | 'NETWORK_ERROR';
+  public readonly place?: GeocodedPlace;
+
   constructor(
-    public readonly code: 'NO_API_KEY' | 'NO_RESULT' | 'OUT_OF_BOUNDS' | 'NETWORK_ERROR',
+    code: 'NO_API_KEY' | 'NO_RESULT' | 'OUT_OF_BOUNDS' | 'NETWORK_ERROR',
     message: string,
-    public readonly place?: GeocodedPlace
+    place?: GeocodedPlace
   ) {
     super(message);
+    this.code = code;
+    this.place = place;
     this.name = 'GeocodeError';
   }
 }
@@ -119,7 +124,7 @@ export const geocodeKeyword = async (keyword: string): Promise<GeocodedPlace> =>
       headers: { Authorization: `KakaoAK ${apiKey}` },
       timeout: 5000,
     });
-  } catch (err) {
+  } catch {
     throw new GeocodeError(
       'NETWORK_ERROR',
       `'${keyword}' 검색 중 오류가 발생했습니다.`
