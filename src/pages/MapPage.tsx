@@ -163,7 +163,7 @@ const MapPage = () => {
       if (mode === 'safe') {
         body.vulnerabilities = ['AVOID_HIGHWAY', 'AVOID_COMPLEX_INTERSECTION', 'AVOID_ACCIDENT_PRONE'];
       }
-      const response = await api.post<RouteResult>('/routes/search', body);
+      const response = await api.post<RouteResult>('/api/routes/search', body);
       setRouteResult(response.data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '경로 탐색에 실패했습니다.';

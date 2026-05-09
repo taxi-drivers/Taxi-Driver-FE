@@ -3,7 +3,7 @@ import axios from 'axios';
 // Axios 인스턴스 생성
 // VITE_API_BASE_URL이 정의되어 있으면 그걸 사용 (Docker는 18080, 로컬 dev는 8080)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,6 +35,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // 인증 실패 처리
       localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('currentUser');
     }
     return Promise.reject(error);
   }
