@@ -4,7 +4,10 @@ import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap } fro
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import api from '../services/api';
+import { isLoggedIn } from '../services/auth';
 import SegmentDetailPopover, { type SegmentDetailData } from '../components/SegmentDetailPopover';
+
+type RouteMode = 'personal' | 'safe' | 'fast';
 
 // 커스텀 원형 마커 (출발 = 파랑, 도착 = 빨강)
 const createMarkerIcon = (color: string, materialIcon: string) =>
@@ -147,7 +150,8 @@ const MapPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRoute, setSelectedRoute] = useState<'safe' | 'fast'>('safe');
+  // 로그인 사용자는 기본 '개인 추천', 비로그인은 '안전 경로'
+  const [selectedRoute, setSelectedRoute] = useState<RouteMode>(isLoggedIn() ? 'personal' : 'safe');
   const [hoveredGroupKey, setHoveredGroupKey] = useState<string | null>(null);
 
   const [startLat, setStartLat] = useState('37.4979');
@@ -155,14 +159,12 @@ const MapPage = () => {
   const [endLat, setEndLat] = useState('37.5172');
   const [endLon, setEndLon] = useState('127.0473');
 
-  const searchRoute = useCallback(async (sLat: number, sLon: number, eLat: number, eLon: number, mode: 'safe' | 'fast') => {
+  const searchRoute = useCallback(async (sLat: number, sLon: number, eLat: number, eLon: number, mode: RouteMode) => {
     setIsLoading(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = { startLat: sLat, startLon: sLon, endLat: eLat, endLon: eLon };
-      if (mode === 'safe') {
-        body.vulnerabilities = ['AVOID_HIGHWAY', 'AVOID_COMPLEX_INTERSECTION', 'AVOID_ACCIDENT_PRONE'];
-      }
+      // mode 필드로 BE가 명시적 분기: personal(사용자 프리퍼런스) / safe(고정 5개) / fast(거리만)
+      const body = { startLat: sLat, startLon: sLon, endLat: eLat, endLon: eLon, mode };
       const response = await api.post<RouteResult>('/api/routes/search', body);
       setRouteResult(response.data);
     } catch (err: unknown) {
@@ -191,7 +193,7 @@ const MapPage = () => {
     searchRoute(sLat, sLon, eLat, eLon, selectedRoute);
   };
 
-  const handleRouteChange = (mode: 'safe' | 'fast') => {
+  const handleRouteChange = (mode: RouteMode) => {
     setSelectedRoute(mode);
     if (routeResult) {
       const sLat = state?.startLat ?? parseFloat(startLat);
@@ -426,10 +428,23 @@ const MapPage = () => {
           {/* Route mode toggle */}
           <div className="flex flex-col gap-2">
             <p className="text-[10px] text-slate-400 font-bold tracking-[0.18em] uppercase">경로 모드</p>
-            <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl">
+              <button
+                onClick={() => isLoggedIn() && handleRouteChange('personal')}
+                disabled={!isLoggedIn()}
+                title={!isLoggedIn() ? '로그인이 필요합니다' : '내 설문 결과 기반 경로'}
+                className={`flex-1 h-10 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
+                  selectedRoute === 'personal'
+                    ? 'bg-white text-primary shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                <span className="material-symbols-outlined text-[16px]">person_pin</span>
+                <span>개인 추천</span>
+              </button>
               <button
                 onClick={() => handleRouteChange('safe')}
-                className={`flex-1 h-10 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`flex-1 h-10 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
                   selectedRoute === 'safe'
                     ? 'bg-white text-primary shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
@@ -440,7 +455,7 @@ const MapPage = () => {
               </button>
               <button
                 onClick={() => handleRouteChange('fast')}
-                className={`flex-1 h-10 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                className={`flex-1 h-10 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
                   selectedRoute === 'fast'
                     ? 'bg-white text-primary shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
@@ -450,6 +465,11 @@ const MapPage = () => {
                 <span>최단 경로</span>
               </button>
             </div>
+            {selectedRoute === 'personal' && (
+              <p className="text-[11px] text-slate-400 leading-relaxed px-1">
+                💡 마이페이지 설문 결과를 바탕으로 회피 특성을 자동 적용합니다.
+              </p>
+            )}
           </div>
 
           {/* Error */}
