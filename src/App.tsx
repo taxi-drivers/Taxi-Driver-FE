@@ -6,6 +6,7 @@ import MapModePage from './pages/MapModePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import AdminPage from './pages/AdminPage';
+import MyPage from './pages/MyPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/map" element={<MapPage />} />
         <Route path="/map-mode" element={<MapModePage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/me" element={<MyPage />} />
       </Routes>
     </Router>
   );

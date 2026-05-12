@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { AdminSurveyHistoryItem, AdminUserDetail, AdminUserSummary } from '../services/admin';
 import {
   getAdminSurveyHistory,
   getAdminUser,
   getAdminUsers,
+  updateAdminUserRole,
+  updateAdminUserStatus,
 } from '../services/admin';
+import { isAdmin, isLoggedIn } from '../services/auth';
 
 const formatDate = (value: string | null) => {
   if (!value) return '-';
@@ -13,11 +16,22 @@ const formatDate = (value: string | null) => {
 };
 
 const AdminPage = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [histories, setHistories] = useState<AdminSurveyHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 인증 가드: 비로그인 → /login, 일반 사용자 → /
+  useEffect(() => {
+    if (!isLoggedIn()) {
+      navigate('/login', { replace: true, state: { from: '/admin' } });
+    } else if (!isAdmin()) {
+      alert('관리자 권한이 필요합니다.');
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   const loadUsers = async () => {
     setIsLoading(true);
@@ -43,7 +57,32 @@ const AdminPage = () => {
     }
   };
 
+  const handleRoleChange = async (userId: number, currentRole: 'USER' | 'ADMIN') => {
+    const next = currentRole === 'ADMIN' ? 'USER' : 'ADMIN';
+    if (!confirm(`이 유저의 role을 ${next}로 변경합니다.`)) return;
+    try {
+      const updated = await updateAdminUserRole(userId, next);
+      setSelectedUser(updated);
+      setUsers((prev) => prev.map((u) => (u.user_id === userId ? { ...u, role: updated.role } : u)));
+    } catch {
+      alert('role 변경에 실패했습니다.');
+    }
+  };
+
+  const handleStatusToggle = async (userId: number, currentActive: boolean) => {
+    const next = !currentActive;
+    if (!confirm(next ? '이 유저를 활성화합니다.' : '이 유저를 정지(로그인 차단)합니다.')) return;
+    try {
+      const updated = await updateAdminUserStatus(userId, next);
+      setSelectedUser(updated);
+      setUsers((prev) => prev.map((u) => (u.user_id === userId ? { ...u, active: updated.active } : u)));
+    } catch {
+      alert('상태 변경에 실패했습니다.');
+    }
+  };
+
   useEffect(() => {
+    if (!isLoggedIn() || !isAdmin()) return; // 가드 redirect 대기
     void loadUsers();
   }, []);
 
@@ -102,6 +141,8 @@ const AdminPage = () => {
                     <th className="text-left px-4 py-3">ID</th>
                     <th className="text-left px-4 py-3">이메일</th>
                     <th className="text-left px-4 py-3">닉네임</th>
+                    <th className="text-left px-4 py-3">Role</th>
+                    <th className="text-left px-4 py-3">상태</th>
                     <th className="text-left px-4 py-3">숙련도</th>
                     <th className="text-left px-4 py-3">취약특성</th>
                     <th className="text-left px-4 py-3">설문</th>
@@ -117,6 +158,28 @@ const AdminPage = () => {
                       <td className="px-4 py-3 font-mono">{user.user_id}</td>
                       <td className="px-4 py-3">{user.email}</td>
                       <td className="px-4 py-3">{user.nickname ?? '-'}</td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                            user.role === 'ADMIN'
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                            user.active
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-red-50 text-red-700'
+                          }`}
+                        >
+                          {user.active ? '활성' : '정지'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 font-mono">{user.skill_level ?? '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1.5">
@@ -157,12 +220,37 @@ const AdminPage = () => {
                 <span>{selectedUser.email}</span>
                 <span className="text-slate-400 font-bold">닉네임</span>
                 <span>{selectedUser.nickname ?? '-'}</span>
+                <span className="text-slate-400 font-bold">Role</span>
+                <span className="font-mono">{selectedUser.role}</span>
+                <span className="text-slate-400 font-bold">상태</span>
+                <span className={selectedUser.active ? 'text-emerald-700' : 'text-red-700'}>
+                  {selectedUser.active ? '활성' : '정지'}
+                </span>
                 <span className="text-slate-400 font-bold">숙련도</span>
                 <span>{selectedUser.skill_level ?? '-'}</span>
                 <span className="text-slate-400 font-bold">가입일</span>
                 <span>{formatDate(selectedUser.created_at)}</span>
                 <span className="text-slate-400 font-bold">최근 설문</span>
                 <span>{formatDate(selectedUser.latest_survey_at)}</span>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleRoleChange(selectedUser.user_id, selectedUser.role)}
+                  className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  {selectedUser.role === 'ADMIN' ? 'USER로 변경' : 'ADMIN으로 변경'}
+                </button>
+                <button
+                  onClick={() => handleStatusToggle(selectedUser.user_id, selectedUser.active)}
+                  className={`flex-1 h-9 px-3 rounded-lg text-xs font-bold ${
+                    selectedUser.active
+                      ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  {selectedUser.active ? '계정 정지' : '계정 활성화'}
+                </button>
               </div>
 
               <div className="border-t border-slate-100 pt-5">

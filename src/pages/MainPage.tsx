@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PlaceSearchInput from '../components/PlaceSearchInput';
 import { geocodeKeyword, GeocodeError, type PlaceSearchResult } from '../services/geocode';
-import { getCurrentUser, isLoggedIn, logout, type CurrentUser } from '../services/auth';
+import { getCurrentUser, isAdmin, isLoggedIn, logout, type CurrentUser } from '../services/auth';
 
 const MainPage = () => {
   const navigate = useNavigate();
@@ -82,15 +82,22 @@ const MainPage = () => {
         <div className="max-w-[1200px] mx-auto px-6 md:px-10 py-3 flex items-center justify-end gap-2">
           {isLoggedIn() ? (
             <>
-              <span className="hidden md:inline text-sm font-bold text-slate-700">
-                {currentUser?.nickname ?? '사용자'}
-              </span>
               <button
-                onClick={() => navigate('/admin')}
-                className="h-9 px-4 rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50"
+                onClick={() => navigate('/me')}
+                className="hidden md:inline-flex items-center gap-1 h-9 px-3 rounded-lg text-sm font-bold text-slate-700 hover:bg-slate-100"
+                title="마이페이지"
               >
-                Admin
+                <span className="material-symbols-outlined text-[16px]">person</span>
+                {currentUser?.nickname ?? '사용자'}
               </button>
+              {isAdmin() && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="h-9 px-4 rounded-lg border border-primary/30 bg-primary/5 text-sm font-bold text-primary hover:bg-primary/10"
+                >
+                  Admin
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className="h-9 px-4 rounded-lg bg-slate-100 text-sm font-bold text-slate-700 hover:bg-slate-200"
