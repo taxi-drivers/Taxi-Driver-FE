@@ -23,6 +23,17 @@ const skillLabel = (skill: number | null) => {
   return '숙련';
 };
 
+// vulnerability_type_id → 라벨 매핑 (vulnerability_type.csv와 동일)
+const VULNERABILITY_NAMES: Record<number, string> = {
+  1: '고속/간선도로 회피',
+  2: '넓은 도로 선호',
+  3: '복잡한 교차로 회피',
+  4: '교통량 많은 도로 회피',
+  5: '사고다발구간 회피',
+  6: '급경사 도로 회피',
+};
+const vulnLabel = (id: number) => VULNERABILITY_NAMES[id] ?? `취약특성 #${id}`;
+
 const MyPage = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState<MyProfile | null>(null);
@@ -241,14 +252,33 @@ const MyPage = () => {
                   </div>
                 </div>
 
-                {profile.primary_vulnerability_type_name && (
+                {(profile.vulnerability_type_ids?.length ?? 0) > 0 && (
                   <div className="px-4 py-3 bg-primary/5 rounded-xl border border-primary/15">
-                    <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-primary mb-1">
-                      주요 취약특성
-                    </p>
-                    <p className="text-sm font-bold text-slate-900">
-                      {profile.primary_vulnerability_type_name}
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-primary">
+                        내 취약특성
+                      </p>
+                      <span className="text-[10px] font-bold text-primary/70 tabular-nums">
+                        {profile.vulnerability_type_ids!.length}개
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {profile.vulnerability_type_ids!.map((id) => {
+                        const isPrimary = id === profile.primary_vulnerability_type_id;
+                        return (
+                          <span
+                            key={id}
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              isPrimary
+                                ? 'bg-primary text-white'
+                                : 'bg-white text-primary border border-primary/30'
+                            }`}
+                          >
+                            {vulnLabel(id)}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -330,11 +360,19 @@ const MyPage = () => {
                             </span>
                           </span>
                           {h.vulnerability_type_ids.length > 0 && (
-                            <span>
+                            <span className="relative group/vuln inline-block">
                               취약특성{' '}
-                              <strong className="text-slate-900">
+                              <strong className="text-slate-900 cursor-help border-b border-dotted border-slate-400">
                                 {h.vulnerability_type_ids.length}개
                               </strong>
+                              <span className="pointer-events-none invisible opacity-0 group-hover/vuln:visible group-hover/vuln:opacity-100 transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 whitespace-nowrap bg-slate-900 text-white text-[11px] rounded-lg px-3 py-2 shadow-lg">
+                                <span className="flex flex-col gap-1 font-medium">
+                                  {h.vulnerability_type_ids.map((id) => (
+                                    <span key={id}>• {vulnLabel(id)}</span>
+                                  ))}
+                                </span>
+                                <span className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-900" />
+                              </span>
                             </span>
                           )}
                           <span className="ml-auto text-[11px] text-primary font-bold">상세 보기 →</span>
